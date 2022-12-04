@@ -1,0 +1,489 @@
+<?php
+
+
+
+    include('config.php');include('countries.php');
+
+
+
+    $mysqli = mysqli_connect(DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_DATABASE);
+
+// 	$mysqli = mysqli_connect('localhost', 'etranzde_garteopencart', 'Berlin_2022!!', 'etranzde_gartendek_opencart');
+
+	$mysqli -> set_charset("utf8");
+
+	$lang_id_ru = '2';
+
+	$lang_id_ro = '3';
+
+    $orders_query="SELECT * FROM `oc_order` WHERE order_id=8 LIMIT 1";
+
+    $result=mysqli_query($mysqli,$orders_query);
+
+    $orders=[];
+
+    while($result_row=mysqli_fetch_assoc($result)){
+
+        $orders[]=$result_row;
+
+    }
+
+    foreach($orders as $o)
+
+    {
+
+        $shipment_query="SELECT * FROM `oc_order_shipment` WHERE order_id={$o['order_id']} LIMIT 1";
+
+        $result_sh=mysqli_query($mysqli,$shipment_query);
+
+        $shipments=[];
+
+        while($result_rowsh=mysqli_fetch_assoc($result_sh)){
+
+            $shipments[]=$result_rowsh;
+
+        }
+
+        $s=$shipments[0];
+
+        $order_data='{
+
+          "RebateDifference": 0,
+
+          "ShippingIds": [
+
+            {
+
+              "BillbeeId": 0,
+
+              "ShippingId": "'.$s["order_shipment_id"].'",
+
+              "Shipper": "N/A",
+
+              "Created": "'.$s["date_added"].'",
+
+              "TrackingUrl": "'.$s["tracking_number"].'",
+
+              "ShippingProviderId": "'.$s["shipping_courier_id"].'",
+
+              "ShippingProviderProductId": 0,
+
+              "ShippingCarrier": 0,
+
+              "ShipmentType": 0
+
+            }
+
+          ],
+
+          "AcceptLossOfReturnRight": true,
+
+          "Id": "'.$o["order_id"].'",
+
+          "OrderNumber": "'.$o["order_id"].'",
+
+          "State": 1,
+
+          "VatMode": 0,
+
+          "CreatedAt": "'.$o["date_added"].'",
+
+          "ShippedAt": "",
+
+          "ConfirmedAt": "",
+
+          "PayedAt": "",
+
+          "SellerComment": "'.$o["comment"].'",
+
+          "Comments": [
+
+          ],
+
+          "InvoiceNumberPrefix": "'.$o["invoice_prefix"].'",
+
+          "InvoiceNumberPostfix": "",
+
+          "InvoiceNumber": "'.$o["invoice_no"].'",
+
+          "InvoiceDate": "",
+
+          "InvoiceAddress": {  },
+
+          "ShippingAddress": {
+
+            "BillbeeId": 0,
+
+            "FirstName": "'.$o["shipping_firstname"].'",
+
+            "LastName": "'.$o["shipping_lastname"].'",
+
+            "Company": "'.$o["shipping_company"].'",
+
+            "NameAddition": "",
+
+            "Street": "",
+
+            "HouseNumber": "",
+
+            "Zip": "'.$o["shipping_postcode"].'",
+
+            "City": "'.$o["shipping_city"].'",
+
+            "CountryISO2": "",
+
+            "Country": "'.$o["shipping_country"].'",
+
+            "Line2": "",
+
+            "Email": "",
+
+            "State": "'.$o["shipping_zone"].'",
+
+            "Phone": ""
+
+          },
+
+          "PaymentMethod": 1,
+
+          "ShippingCost": 0,
+
+          "TotalCost": "'.$o["total"].'",
+
+          "AdjustmentCost": 0,
+
+          "AdjustmentReason": "",
+
+          "Currency": "'.$o["currency_code"].'",
+
+          "Seller": {
+
+            "Platform": "",
+
+            "BillbeeShopName": "'.$o["store_name"].'",
+
+            "BillbeeShopId": 0,
+
+            "Id": "",
+
+            "Nick": "",
+
+            "FirstName": "",
+
+            "LastName": "",
+
+            "FullName": "",
+
+            "Email": ""
+
+          },
+
+          "Buyer": {
+
+            "Platform": "",
+
+            "BillbeeShopName": "",
+
+            "BillbeeShopId": 0,
+
+            "Id": "'.$o["customer_id"].'",
+
+            "Nick": "",
+
+            "FirstName": "'.$o["firstname"].'",
+
+            "LastName": "'.$o["lastname"].'",
+
+            "FullName": "'.$o["firstname"]." ".$o["lastname"].'",
+
+            "Email": "'.$o["email"].'"
+
+          },
+
+          "UpdatedAt": "",
+
+          "TaxRate1": 0,
+
+          "TaxRate2": 0,
+
+          "BillBeeOrderId": 0,
+
+          "BillBeeParentOrderId": 0,
+
+          "VatId": "",
+
+          "Tags": [
+
+            "string"
+
+          ],
+
+          "ShipWeightKg": 0,
+
+          "LanguageCode": "de",
+
+          "PaidAmount": 0,
+
+          "ShippingProfileId": "",
+
+          "ShippingProviderId": 0,
+
+          "ShippingProviderProductId": 0,
+
+          "ShippingProviderName": "'.$o["shipping_company"].'",
+
+          "ShippingProviderProductName": "",
+
+          "ShippingProfileName": "'.$o["shipping_company"].'",
+
+          "PaymentInstruction": "'.$o["payment_method"].'",
+
+          "IsCancelationFor": "",
+
+          "PaymentTransactionId": "",
+
+          "DistributionCenter": "'.$o["shipping_zone"].'",
+
+          "DeliverySourceCountryCode": "'.array_search($o["shipping_country"],$countries).'",
+
+          "CustomInvoiceNote": "",
+
+          "CustomerNumber": "",
+
+          "PaymentReference": "",
+
+          
+
+          
+
+          "History": [
+
+            {
+
+              "Created": "'.$o["date_added"].'",
+
+              "EventTypeName": "",
+
+              "Text": "",
+
+              "EmployeeName": "",
+
+              "TypeId": 0
+
+            }
+
+          ],
+
+          "Payments": [
+
+            {
+
+              "BillbeeId": 0,
+
+              "TransactionId": "",
+
+              "PayDate": "'.$o["date_added"].'",
+
+              "PaymentType": 0,
+
+              "SourceTechnology": "",
+
+              "SourceText": "",
+
+              "PayValue": 0,
+
+              "Purpose": "",
+
+              "Name": ""
+
+            }
+
+          ],
+
+          "LastModifiedAt": "'.$o["date_modified"].'",
+
+          "ArchivedAt": "",
+
+          "RestoredAt": "",
+
+          "ApiAccountId": 20000000000044596,
+
+          "ApiAccountName": "Alex_fiverr",
+
+          "MerchantVatId": "",
+
+          "CustomerVatId": "",
+
+          "IsFromBillbeeApi": true,
+
+        ';
+
+        $products_query="SELECT * FROM `oc_order_product` WHERE order_id={$o['order_id']}";
+
+        $result_pr=mysqli_query($mysqli,$products_query);
+
+        $products=[];
+
+        while($result_rowpr=mysqli_fetch_assoc($result_pr))
+
+        {
+
+            $products[]=$result_rowpr;
+
+        }
+
+        $pp='[';
+
+        foreach($products as $p)
+
+        {
+
+            $pp.='{
+
+              "BillbeeId": 0,
+
+              "TransactionId": "",
+
+              "Product": {
+
+                "OldId": "",
+
+                "Id": "'.$p["product_id"].'",
+
+                "Title": "'.$p["name"].'",
+
+                "Weight": 0,
+
+                "SKU": "'.$p["model"].'",
+
+                "SkuOrId": "",
+
+                "IsDigital": false,
+
+                "Images": [
+
+                ],
+
+                "EAN": "string",
+
+                "PlatformData": "string",
+
+                "TARICCode": "string",
+
+                "CountryOfOrigin": "string",
+
+                "BillbeeId": 0
+
+              },
+
+              "Quantity": "'.$p["quantity"].'",
+
+              "TotalPrice": "'.$p["total"].'",
+
+              "TaxAmount": "'.$p["tax"].'",
+
+              "TaxIndex": 0,
+
+              "Discount": 0,
+
+              "Attributes": [      ],
+
+              "GetPriceFromArticleIfAny": false,
+
+              "IsCoupon": false,
+
+              "ShippingProfileId": "",
+
+              "DontAdjustStock": true,
+
+              "UnrebatedTotalPrice": 0,
+
+              "SerialNumber": "",
+
+              "InvoiceSKU": "'.$p["model"].'"
+
+            }';
+
+        }
+
+        $pp.=']}';
+
+        $order_data.='"OrderItems":'.$pp;
+
+        
+
+        $data[]=$order_data;
+
+        
+
+    }
+
+    
+
+    $array=json_decode($data[0],1);
+
+    echo "<pre>";
+
+        print_r($data[0]); 
+
+        echo "</pre><br>";
+
+   
+
+    error_reporting(E_ALL);
+
+    
+
+    $ch=curl_init();
+
+    $headers = array(
+
+        'Content-Type:application/json',
+
+        'Authorization: Basic '. base64_encode("Alex_fiverr:6dfab82de40a715dc20930481e"),
+
+        'X-Billbee-Api-Key: 4A6868BB-13D2-4D70-918E-B499412C0528'
+
+    );
+
+    echo "H";
+
+    
+
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    curl_setopt($ch, CURLOPT_HEADER, 0);
+
+    curl_setopt($ch, CURLOPT_URL, 'https://api.billbee.io/api/v1/orders');
+
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    curl_setopt($ch, CURLOPT_POST, 1);
+
+    // foreach($data as $d)
+
+    // {
+
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data[0]);
+
+        $server_output = curl_exec($ch);
+
+        // $output=json_decode($server_output,1);
+
+        echo "<pre>";
+
+        print_r($server_output); 
+
+        echo "</pre><br>";
+
+    // }
+
+    
+
+    curl_close($ch);
+
+
+
+
+
+?>
