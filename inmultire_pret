@@ -1,0 +1,14 @@
+<label for="input-text">Introduceți valoarea:</label>
+<input type="text" id="input-text">
+<script type="text/javascript">
+  $ (function() {
+    $('#input-text').on('change', function() {
+      var value = parseFloat($(this).val());
+      var base_price = "{{ price }}".replace('€', '').trim();
+      console.log(base_price); // verifica valoarea preluată în consolă
+      var final_price = (value * base_price).toFixed(2);
+      console.log(final_price); // verifica prețul final în consolă
+      $('#product-price').text(final_price + '€');
+    });
+  });
+</script>
