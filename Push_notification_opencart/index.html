@@ -1,0 +1,189 @@
+// Butonul linga butonul exit
+
+<li><a href="#" id="notification-icon" alt="Text alternativ"><img src="../image/notification.png" alt="Text alternativ" width="30" height="25" ></a></li>
+
+<style>
+    .popup {
+      display: none;
+      position: fixed;
+      top: 18%;
+      left: 26%;
+      transform: translate(-50%, -50%);
+      background-color: white;
+      padding: 20px;
+      border: 1px solid #ccc;
+      width: 390px;
+      height: 226px;
+    }
+
+    .popup-content {
+      text-align: center;
+    }
+    .custom-form-group {
+      margin-bottom: 10px;
+    }
+
+
+  </style>
+
+<style>
+.snackbar {
+    visibility: hidden;
+    min-width: 250px;
+    margin-left: -125px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 2px;
+    padding: 16px;
+    position: fixed;
+    z-index: 1;
+    left: 50%;
+    bottom: 30px;
+    font-size: 14px;
+}
+
+.snackbar.show {
+    visibility: visible;
+    -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    animation: fadein 0.5s, fadeout 0.5s 2.5s;
+}
+
+@-webkit-keyframes fadein {
+    from {bottom: 0; opacity: 0;}
+    to {bottom: 30px; opacity: 1;}
+}
+
+@keyframes fadein {
+    from {bottom: 0; opacity: 0;}
+    to {bottom: 30px; opacity: 1;}
+}
+
+@-webkit-keyframes fadeout {
+    from {bottom: 30px; opacity: 1;}
+    to {bottom: 0; opacity: 0;}
+}
+
+@keyframes fadeout {
+    from {bottom: 30px; opacity: 1;}
+    to {bottom: 0; opacity: 0;}
+}
+</style>
+<script>
+$(document).ready(function() {
+    // Funcția pentru trimiterea formularului utilizând Ajax
+    $("form").submit(function(event) {
+        event.preventDefault(); // Prevenirea trimiterii formularului prin metoda tradițională
+        var form = $(this);
+        var url = form.attr("action");
+        var formData = form.serialize();
+
+        // Trimiteți cererea Ajax către server
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: formData,
+            success: function(response) {
+                // Manipulați răspunsul primit de la server
+                showSnackbar("Notificarea a fost trimisă cu succes către FCM."); // Afișează mesajul de succes în notificare
+                form[0].reset(); // Resetați formularul
+            },
+            error: function() {
+                showSnackbar("Eroare la trimiterea notificării către FCM."); // Afișează mesajul de eroare în notificare
+            }
+        });
+    });
+});
+
+// Funcția pentru afișarea notificării de tip snackbar
+function showSnackbar(message) {
+    var snackbar = $("<div/>").text(message).addClass("snackbar");
+    $("#snackbar-container").append(snackbar);
+
+    snackbar.addClass("show");
+    setTimeout(function() {
+        snackbar.removeClass("show");
+        setTimeout(function() {
+            snackbar.remove();
+        }, 200);
+    }, 3000);
+}
+</script>
+<div id="myPopup" class="popup" style="display: none;">
+  <div class="popup-content">
+    <button type="button" class="close" aria-label="Close" onclick="closePopup()">
+      <span aria-hidden="true">×</span>
+    </button>
+    <p>إرسال إشعار على Android و IOS</p>
+    <?php include(DIR_TEMPLATE . 'notification_app.php'); ?>
+    <form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>" id="notification-form">
+      <div>
+        <label class="col-sm-2 control-label">
+          <span data-toggle="tooltip" title="" data-original-title="الرجاء إدخال العنوان في شكل قصير"></span>
+        </label>
+        <div class="col-sm-10">
+          <input type="text" name="title" value="" placeholder="العنوان" id="title" class="form-control custom-form-group">
+        </div>
+      </div>
+      <div>
+        <label class="col-sm-2 control-label">
+          <span data-toggle="tooltip" title="" data-original-title="الرجاء إدخال الرسالة التي تريدها"></span>
+        </label>
+        <div class="col-sm-10">
+          <input type="text" name="body" value="" placeholder="الرسالة" id="body" class="form-control custom-form-group">
+        </div>
+      </div>
+      <div>
+        <label class="col-sm-2 control-label">
+          <span data-toggle="tooltip" title="" data-original-title="يجب أن تكون الصورة بتنسيق HTTP"></span>
+        </label>
+        <div class="col-sm-10">
+          <input type="text" name="image" value="" placeholder="صورة" id="image" class="form-control custom-form-group">
+        </div>
+      </div>
+      
+       <input type="checkbox" name="sound_enabled" id="sound_enabled">
+    
+      <label class="col-sm-2 control-label">
+     <span data-toggle="tooltip" title="" data-original-title="يمكننا تنشيط أو إلغاء تنشيط الصوت (يعتمد على إعدادات الهاتف المحمول للعميل)"></span>
+      </label>
+     
+      <div class="col-sm-9 control-inline">
+        <a>
+          <button type="submit" class="btn btn-primary pull-left">
+            <i class="fa fa-paper-plane-o"></i> أرسل الإخطار
+          </button>
+        </a>
+      </div>
+    </form>
+    <div id="snackbar-container"></div>
+  </div>
+</div>
+
+
+  <script>
+
+// Funcția pentru afișarea notificării de tip snackbar
+function showSnackbar(message) {
+    var snackbar = $("<div/>").text(message).addClass("snackbar");
+    $("#snackbar-container").append(snackbar);
+
+    snackbar.addClass("show");
+    setTimeout(function() {
+        snackbar.removeClass("show");
+        setTimeout(function() {
+            snackbar.remove();
+        }, 200);
+    }, 3000);
+};
+
+    function openPopup() {
+      document.getElementById("myPopup").style.display = "block";
+    }
+
+    function closePopup() {
+      document.getElementById("myPopup").style.display = "none";
+    }
+
+    document.getElementById("notification-icon").addEventListener("click", openPopup);
+  </script>
