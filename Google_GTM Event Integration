@@ -1,19 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modification>
-    <name>GTM Event Integration</name>
+    <name>GTM Event Integration_07</name>
     <version>1.0</version>
     <author>Google GTM</author>
-    <code>gtm_events_integration_01</code>
+    <code>gtm_events_integration_07</code>
     <description>Google Tag Manager events integrations</description>
-
-       <file path="catalog/view/theme/*/template/common/header.twig">
+    <file path="catalog/view/theme/*/template/common/header.twig">
         <operation>
             <search><![CDATA[{% for link in links %}]]></search>
             <add position="before"><![CDATA[
                 
-                <!-- 'value': parseFloat(price/19.50).toFixed(2), -->
+
                 <!-- Google Tag Manager Events -->
+                 <!--   'value': parseFloat(price/19.50).toFixed(2), -->
+
                 <script>
+
+
             {% if current_url=="checkout/simplecheckout" %}
                 $(function(e){
                         dataArray=[];
@@ -61,19 +64,32 @@
 
             {% if current_url=="checkout/success" %}
                     $(function(){
-                        var cart_data='';
-                        var cookies = document.cookie.split("; ");
-                        for (var i = 0; i < cookies.length; i++) {
-                          var cookie = cookies[i].split("=");
-                          var cookieName = cookie[0];
-                          var cookieValue = cookie[1];
-                          if (cookieName === "temp_cart") {
-                            cart_data=cookieValue;
-                            break;
-                          }
-                        }
-                        console.table(JSON.parse(cart_data));
-                        dataLayer.push(JSON.parse(cart_data));
+                        var dataArray=[];
+                        {% set jsonData = cart_products|json_encode %}
+                        dataArray= {{ jsonData|raw }};
+                        console.table(dataArray);
+                        var total=0; items=[];
+                        $.each(dataArray,function(a,b){
+                            total += b.quantity*(b.product_info.special?parseFloat(b.product_info.special):parseFloat(b.product_info.price));
+                            item={
+                                    'item_name': b.product_names_ro, 
+                                    'item_id': b.product_info.sku, 
+                                    'price':  parseFloat((b.product_info.special?b.product_info.special:b.product_info.price)/19.50).toFixed(2),  
+                                    'currency': 'EUR', 
+                                    'quantity': b.quantity, 
+                                    'item_brand': b.product_info.manufacturer, 
+                                    'item_category': b.category_names[0],  
+                                 };
+                             items.push(item);
+                        })
+                        dataLayer.push({
+                            'event': 'purchase',
+                            'ecommerce': {
+                                'value': parseFloat(total/19.50).toFixed(2),
+                                'currency': 'EUR', // Currency code
+                                'items': items
+                             }
+                        });
                     })
             {% endif %}
 
@@ -124,7 +140,7 @@
                         dataLayer.push({
                             'event': 'add_to_wishlist',
                             'ecommerce': {
-                                'value': parseFloat(value/19.50).toFixed(2),
+                                'value': parseFloat(price/19.50).toFixed(2),
                                 'currency': 'EUR', // Currency code
                                 'items': [
                                     {
@@ -479,7 +495,7 @@
                             'name': '{{ product_names_ro }}',
                             'item_id': '{{ sku }}', 
                             'price': parseFloat(price/19.50).toFixed(2),
-                            'currency': '{{ currency }}',
+                            'currency': 'EUR', // Currency code
                             'quantity': '1',
                             {% if manufacturer %}
                             "brand": '{{ manufacturer }}',
@@ -516,7 +532,7 @@
                                        'name': '{{ product_names_ro }}',
                                        'item_id': '{{ sku }}', 
                                        'price': parseFloat(price/19.50).toFixed(2),
-                                       'currency': '{{ currency }}',
+                                       'currency': 'EUR', // Currency code
                                        'quantity': quantity,
                                       {% if manufacturer %}
                                        "brand": '{{ manufacturer }}',
@@ -545,14 +561,14 @@
                          dataLayer.push({
                          'event': 'add_to_wishlist',
                          'ecommerce': {                            
-                            'value': parseFloat(price/19.50).toFixed(2),
+                                'value': parseFloat(price/19.50).toFixed(2),
                                 'currency': 'EUR', // Currency code
                                 'items': [
                                     {
                                        'name': '{{ product_names_ro }}',
                                        'item_id': '{{ sku }}', 
                                        'price': parseFloat(price/19.50).toFixed(2),
-                                       'currency': '{{ currency }}',
+                                       'currency': 'EUR', // Currency code
                                        'quantity': quantity,
                                       {% if manufacturer %}
                                        "brand": '{{ manufacturer }}',
@@ -571,12 +587,28 @@
                 ]]></add>
         </operation>
     </file>
+
     <file path="catalog/controller/common/header.php">
         <operation>
             <search><![CDATA[return $this->load->view('common/header', $data);]]></search>
-            <add position="before"><![CDATA[$data['current_url'] = ($this->request->get['route']??"");]]></add>
+            <add position="before"><![CDATA[
+                $products=$this->cart->getProducts();
+                if($products) {
+                    foreach($products as $i => $p) {
+                        $products[$i]['product_names_ro']=$this->model_catalog_product->getProductNames($p['product_id']);
+                        $products[$i]['category_names']=$this->model_catalog_product->getProductCategoryNames($p['product_id']);
+                        $products[$i]['product_info']=$this->model_catalog_product->getProduct($p['product_id']);
+                    }
+                }
+                $cart_products=$products;
+                $data['cart_products']=$cart_products;
+
+                $data['current_url'] = ($this->request->get['route']??"");
+                ]]></add>
         </operation>
     </file>
+
+
     <file path="catalog/controller/product/product.php">
         <operation>
             <search><![CDATA[$data['rating'] = (int)$product_info['rating'];]]></search>
@@ -587,6 +619,7 @@
 
                     $data['cantitatea'] = $product_info['quantity'];
 
+                
                     $category_names = $this->model_catalog_product->getProductCategoryNames($product_id);
                     $data['category_names'] = $category_names;
 
@@ -608,10 +641,30 @@
                 ]]></add>
         </operation>
     </file>
+    <file path="catalog/controller/checkout/success.php">
+        <operation>
+            <search>
+                <![CDATA[$this->cart->clear();]]>
+            </search>
+            <add position="replace">
+                <![CDATA[/////////////////////////////////////////////////////////////]]>
+            </add>
+        </operation>
+        <operation>
+            <search>
+                <![CDATA[$this->response->setOutput($this->load->view('common/success', $data));]]>
+            </search>
+            <add position="before">
+                <![CDATA[$this->cart->clear();]]>
+            </add>
+        </operation>
+    </file>
+
     <file path="catalog/model/catalog/product.php">
         <operation>
             <search><![CDATA[public function getProductDescriptions($product_id) {]]></search>
             <add position="before"><![CDATA[
+
                     public function getProductNames($product_id) {
                         $query = $this->db->query("SELECT `name` FROM " . DB_PREFIX . "product_description WHERE product_id = '". (int)$product_id . "' AND language_id = 4");
                         
@@ -646,6 +699,7 @@
                             return 0;
                         }
                     }
+                    
                 ]]></add>
         </operation>
     </file>
@@ -693,6 +747,7 @@
                 ]]></add>
         </operation>
     </file>
+
     <file path="catalog/view/theme/*/template/octemplates/module/oct_products_modules.twig">
         <operation>
             <search><![CDATA[<ul class="us-module-buttons-list">]]></search>
