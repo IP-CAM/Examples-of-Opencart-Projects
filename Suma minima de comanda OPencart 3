@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<modification>
+    <name>Suma minima de comanda BabyPlants</name>
+    <code>Suma minima de comanda BabyPlants</code>
+    <version>1.0.0</version>
+    <author>BabyPlants</author>
+    <link>https://babyplants.md</link>
+    <file path="admin/controller/setting/setting.php">
+        <operation error="skip">
+            <search><![CDATA[if (isset($this->error['voucher_min'])) {]]></search>
+            <add position="before"><![CDATA[
+            if (isset($this->error['order_amount_min'])) {
+                $data['error_order_amount_min'] = $this->error['order_amount_min'];
+            } else {
+                $data['error_order_amount_min'] = '';
+            }]]></add>
+        </operation>
+        <operation error="skip">
+            <search><![CDATA[if (isset($this->request->post['config_voucher_min'])) {]]></search>
+            <add position="before"><![CDATA[
+            if (isset($this->request->post['config_order_amount_min'])) {
+                $data['config_order_amount_min'] = $this->request->post['config_order_amount_min'];
+            } else {
+                $data['config_order_amount_min'] = $this->config->get('config_order_amount_min');
+            }]]></add>
+        </operation>
+    </file>
+    <file path="admin/language/ro-ro/setting/setting.php">
+        <operation error="skip">
+        <search regex="true"><![CDATA[~(\$_\[\'entry_voucher_min\'\])~]]></search>
+            <add position="replace"><![CDATA[
+                $_['entry_order_amount_min']         = 'Suma minimă a comenzii';
+                $_['entry_voucher_min']
+            ]]></add>
+        </operation>
+        <operation error="skip">
+        <search regex="true"><![CDATA[~(\$_\[\'help_voucher_min\'\])~]]></search>
+            <add position="replace"><![CDATA[
+                $_['help_order_amount_min']          = 'Suma minimă a comenzii';
+                $_['help_voucher_min']
+            ]]></add>
+        </operation>
+        <operation error="skip">
+        <search regex="true"><![CDATA[~(\$_\[\'error_voucher_min\'\])~]]></search>
+            <add position="replace"><![CDATA[
+                $_['error_order_amount_min']         = 'Suma minimă a comenzii!';
+                $_['error_voucher_min']
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/language/ru-ru/setting/setting.php">
+        <operation error="skip">
+            <search regex="true"><![CDATA[~(\$_\[\'entry_voucher_min\'\])~]]></search>
+            <add position="replace"><![CDATA[
+                $_['entry_order_amount_min']         = 'Минимальная сумма заказа';
+                $_['entry_voucher_min']
+            ]]></add>
+        </operation>
+        <operation error="skip">
+            <search regex="true"><![CDATA[~(\$_\[\'help_voucher_min\'\])~]]></search>
+            <add position="replace"><![CDATA[
+                $_['help_order_amount_min']          = 'Минимальная сумма заказа';
+                $_['help_voucher_min']
+            ]]></add>
+        </operation>
+        <operation error="skip">
+        <search regex="true"><![CDATA[~(\$_\[\'error_voucher_min\'\])~]]></search>
+            <add position="replace"><![CDATA[
+                $_['error_order_amount_min']         = 'Минимальная сумма заказа!';
+                $_['error_voucher_min']
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/view/template/setting/setting.twig">
+        <operation error="skip">
+            <search><![CDATA[<legend>{{ text_checkout }}</legend>]]></search>
+            <add position="after"><![CDATA[
+            <div class="form-group required">
+                <label class="col-sm-2 control-label" for="input-order-amount-min"><span data-toggle="tooltip" title="{{ help_order_amount_min }}">{{ entry_order_amount_min }}</span></label>
+                <div class="col-sm-10">
+                    <input type="text" name="config_order_amount_min" value="{{ config_order_amount_min }}" placeholder="{{ entry_order_amount_min }}" id="input-order-amount-min" class="form-control" />
+                    {% if error_order_amount_min %}
+                    <div class="text-danger">{{ error_order_amount_min }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/controller/checkout/cart.php">
+        <operation error="skip">
+            <search><![CDATA[if (!$this->cart->hasStock() && (!$this->config->get('config_stock_checkout') || $this->config->get('config_stock_warning'))) {]]></search>
+            <add position="replace"><![CDATA[
+            if (!$this->cart->checkOrderMinAmount()) {
+                $data['error_warning'] = sprintf($this->language->get('error_order_amount_min'), $this->currency->format($this->cart->getOrderMinAmount(), 'BYN'));
+            } elseif (!$this->cart->hasStock() && (!$this->config->get('config_stock_checkout') || $this->config->get('config_stock_warning'))) {
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/controller/checkout/oct_fastorder.php">
+        <operation error="skip">
+            <search><![CDATA[$this->load->language('octemplates/oct_fastorder');]]></search>
+            <add position="before"><![CDATA[
+            if (!$this->cart->checkOrderMinAmount()) {
+                $this->response->redirect($this->url->link('checkout/cart'));
+            }
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/language/ro-ro/checkout/cart.php">
+        <operation error="skip">
+        <search><![CDATA[// Error]]></search>
+            <add position="after"><![CDATA[
+                $_['error_order_amount_min']   = 'Atenție! Suma minimă a comenzii este de %s MDL';
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/language/ru-ru/checkout/cart.php">
+        <operation error="skip">
+            <search><![CDATA[// Error]]></search>
+            <add position="after"><![CDATA[
+                $_['error_order_amount_min']   = 'Внимание! Минимальная сумма заказа составляет %s MDL';
+            ]]></add>
+        </operation>
+    </file>
+    <file path="system/library/cart/cart.php">
+        <operation error="skip">
+            <search><![CDATA[public function hasDownload() {]]></search>
+            <add position="before"><![CDATA[
+            public function checkOrderMinAmount() {
+                return $this->getSubTotal() >= $this->config->get('config_order_amount_min'); 
+            }
+        
+            public function getOrderMinAmount() {
+                return $this->config->get('config_order_amount_min');
+            }]]></add>
+        </operation>
+    </file>
+</modification>
