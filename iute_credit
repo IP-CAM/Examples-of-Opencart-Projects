@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <name>Iute_Credit_Hola</name>
+    <version>1.0</version>
+    <author>Iute_Credit</author>
+    <link></link>
+    <code>Iute_Credit_Hola</code>
+    <description>Iute Credit Hola</description>
+       <file path="catalog/view/theme/oct_ultrastore/template/common/header.twig">
+        <operation>
+            <search><![CDATA[
+              </head>
+              ]]></search>
+            <add position="before"><![CDATA[
+            <script type="text/javascript" src="https://ecom.iutecredit.md/iutepay.js"></script>
+            <link href="https://ecom.iutecredit.md/iutepay.css" rel="stylesheet" type="text/css">
+            <script type="text/javascript">
+            iute.configure('edccd71a-e651-4ee8-a8d8-f149a29c747c', 'ru');
+            </script>
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/view/theme/oct_ultrastore/template/product/product.twig">
+        <operation>
+            <search><![CDATA[
+             <ul class="us-product-description-nav list-unstyled d-flex align-items-center">
+              ]]></search>
+            <add position="before"><![CDATA[
+          <!--IuteBlock New Start-->
+            {% set priceFinal = not special ? price: special %}
+            <div class="iute-as-low-as us-product-action d-lg-flex justify-contentbetween order-2 order-md-3" style="margin-top:10px;margin-left:3px;" data-amount="{{
+            priceFinal|replace({' ': ''})|split(',')[0] }}" data-page-type="product" data-sku="{{ product_id }}"
+            data-learnmore-show="true"></div>
+            <!--END IuteBlock New End-->
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/view/theme/oct_ultrastore/template/checkout/simplecheckout_payment.twig">
+        <operation>
+            <search><![CDATA[
+            <div class="simplecheckout-block" id="simplecheckout_payment" {{ hide ? 'data-hide="true"' : '' }} {{ display_error and has_error ? 'data-error="true"' : '' }}>
+              ]]></search>
+            <add position="before"><![CDATA[
+<script>
+
+    $(document).on("click","#iutecredit", function(){
+
+      var fullName = $("#customer_firstname").val()+" "+$("#customer_lastname").val();
+      var addressName = 'default address';//$("#shipping_address_address_1").val()+" "+$("#shipping_address_city").val();
+      var phoneNr = $("#customer_telephone").val();
+      var emailName = $("#customer_email").val();
+      var itemsProducts = [];
+      const dataTable = document.getElementsByClassName("simplecheckout-cart")[0];
+      const rows = dataTable.querySelectorAll("tr");
+      for (var i = 0; i < rows.length; i++) {
+        const cells = rows[i].querySelectorAll("td");
+        let item = getProductInfoRow(cells);
+        if(item.id !== ''){
+          itemsProducts.push(item);
+        }
+      }
+      console.log(itemsProducts);
+      const price1 = document.getElementsByClassName('simplecheckout-cart-total-value')[0].innerText.replace(" ","");
+      const totalPrice = price1.replace(".","");
+      const total = parseFloat(totalPrice).toFixed(0);
+
+      if(fullName !== "" && addressName !=="" && phoneNr!=="" && emailName !==""){
+          iute.configure('edccd71a-e651-4ee8-a8d8-f149a29c747c', 'ro');
+        iute.checkout({
+          "merchant": {"name": "hola.md"},
+          "shipping": {
+            "name": {"first": fullName,"last": fullName,"patronymic": "" },
+            "address": {"line1": addressName,"country": "mda"},
+            "phoneNumber": phoneNr,
+            "email": emailName
+          },
+          "billing": {
+            "name": {"first": fullName,"last": fullName,"patronymic": ""},
+            "address": {"line1": addressName,"country": "mda"},
+            "phoneNumber": phoneNr,
+            "email": emailName
+          },
+          "items": itemsProducts,
+          "discounts": {
+            "COMMON_DISCOUNT": {
+              "discount_amount": 0,
+              "discount_display_name": "WC discount"
+            }
+          },
+          "metadata": {
+            "mode": "modal"
+          },
+          "orderId": Date.now(),
+          "currency": "mdl",
+          "shippingAmount": 0,
+          "taxAmount": 0,
+          "subtotal": total,
+          "discount": 0,
+          "total": total
+        },
+        {
+          onSuccess: function(result) {
+            console.log("Success " + JSON.stringify(result));
+            //continue submitting
+            //e.currentTarget.submit();
+          },
+          onFailure: function(result) {
+            console.log("onFailure " + JSON.stringify(result));
+            // show error to customer
+            $("#checkout-error").text(result.error).show()
+          }
+        }
+        );
+      }
+
+
+    });
+
+    function getProductInfoRow(cells){
+      var image,name, model, quantity, price, total, url, id = '';
+      for(var j= 0; j< cells.length; j++){
+        if(cells[j].className == 'image'){
+          url = cells[j].getElementsByTagName('a')[0].href;
+          image = cells[j].getElementsByTagName('img')[0].src;
+          name = cells[j].getElementsByTagName('img')[0].alt;
+        }
+        // if(cells[j].className == 'name'){
+        //
+        // }
+        if(cells[j].className == 'model'){
+          model = cells[j].innerText;
+        }
+        if(cells[j].className == 'quantity'){
+          quantity = cells[j].getElementsByTagName('input')[0].value;
+          id = parseInt(cells[j].getElementsByTagName('input')[0].name.replace(/[^\d\,\-]/g, ""));
+        }
+        if(cells[j].className == 'total'){
+          const price1 = cells[j].innerText.replace(" ","");
+          price = parseFloat(price1.replace(".","")).toFixed(0);
+        }
+        // if(cells[j].className == 'total'){
+        //
+        // }
+      }
+
+      return  {
+        'sku': model,
+        'id': id,
+        'displayName': name,
+        'unitPrice': price,
+        'qty': quantity,
+        "itemImageUrl": image,
+        "itemUrl": url
+      }
+
+    }
+  </script>
+            ]]></add>
+        </operation>
+    </file>
+</modification>
