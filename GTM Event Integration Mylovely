@@ -1,0 +1,669 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <name>GTM Event Integration</name>
+    <version>1.0</version>
+    <author>Malik Devs</author>
+    <code>gtm_events_integration_mylovely</code>
+    <description>Google Tag Manager events integrations</description>
+
+        <file path="catalog/view/theme/*/template/common/header.twig">
+        <operation>
+            <search><![CDATA[<base href="{{ base }}" />]]></search>
+            <add position="after"><![CDATA[
+            
+<meta id="currency_meta" data-value="GBP" data-factor="1" data-multiply="1" product_id="{{product_data | json_encode | raw}}">
+
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[</head>]]></search>
+            <add position="before"><![CDATA[
+{% if current_url != "checkout/cart" and current_url != 'checkout/checkout' %}
+<script src="https://code.jquery.com/jquery-2.2.1.min.js"></script>
+{% endif %}
+<script>
+    $(function(){
+        var meta = $("#currency_meta");
+        var currency = meta.data('value');
+        var multiply = meta.data('multiply');
+        var factor =   meta.data('factor');
+
+        $('body').on('click', '.btn-cart , #button-cart', function(e) {
+            if($(this).attr("id")=='button-cart') {
+                var string = $(this).closest('body').attr("class");
+                array = string.split("-");
+                var Id = array[2];
+                var quantity = $("#product-quantity").val();
+            } else {
+                inputString = $(this).attr('onclick');
+                var regex = /cart\.add\('(\d+)'/;
+                var match = inputString.match(regex);
+                var Id = match[1];
+                var quantity = 1;   
+            }
+            
+            $.get("{{base}}index.php?route=product/product/getProductDataForGTM&product_id="+Id,function(response){
+                var a = JSON.parse(response);
+                var price = a.price;
+                if(multiply== 1 || multiply== "1") {
+                    price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                } else {
+                    price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                }
+                dataLayer.push({
+                    'event': 'add_to_cart',
+                    'ecommerce': {
+                        'value': price*quantity,
+                        'currency': currency, 
+                        'items': [
+                            {
+                                'item_name': a.item_name, 
+                                'item_id': Id, 
+                                'price': price,  
+                                'currency': currency, 
+                                'quantity': quantity, 
+                                'item_brand': a.item_brand, 
+                                'item_category': a.item_category,  
+                             }
+                        ]
+                    }
+                });
+            })
+        });
+
+        $('body').on('click', '.btn-wishlist ', function(e) {
+                inputString = $(this).attr('onclick');
+                array = inputString.split(".");
+                if(array[0]=='parent') {
+                    var Id = array[2].match(/\d+/);
+                } else {
+                    var Id = array[1].match(/\d+/);
+                }
+                var quantity = 1;    
+            
+            $.get("{{base}}index.php?route=product/product/getProductDataForGTM&product_id="+Id,function(response){
+                var a = JSON.parse(response);
+                var price = a.price;
+                if(multiply== 1 || multiply== "1") {
+                    price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                } else {
+                    price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                }
+                dataLayer.push({
+                    'event': 'add_to_wishlist',
+                    'ecommerce': {
+                        'value': price*quantity,
+                        'currency': currency, 
+                        'items': [
+                            {
+                                'item_name': a.item_name, 
+                                'item_id': a.item_id, 
+                                'price': price,  
+                                'currency': currency, 
+                                'quantity': quantity, 
+                                'item_brand': a.item_brand, 
+                                'item_category': a.item_category,  
+                             }
+                        ]
+                    }
+                });
+            })
+        });
+
+        {% if current_url != "checkout/cart" %}
+        $("body").append("<input type='hidden' id='cart_opened' value='0'>");
+        $('#cart').mouseenter( function(e) {
+            if($("#cart_opened").val()==0) {
+        {% endif %}
+            var items = [];
+            var value = 0;
+            $.ajax({
+                url: "{{base}}index.php?route=product/product/getCartDataForGTM",
+                method: "GET",
+                async: false, // Set async option to false
+                success: function(response) {
+                    var data = JSON.parse(response);
+                    $("#cart_opened").val('1');
+                    $.each(data,function(ind,a){
+                        var price = a.price;
+                        if(multiply== 1 || multiply== "1") {
+                            price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                        } else {
+                            price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                        }
+                        items.push({
+                            'item_name': a.item_name, 
+                            'item_id': a.item_id, 
+                            'price': price,  
+                            'currency': currency, 
+                            'quantity': a.quantity, 
+                            'item_brand': a.item_brand, 
+                            'item_category': a.item_category,  
+                        });
+                        value += (price * parseInt(a.quantity));
+                    })
+                    dataLayer.push({
+                        'event': 'view_cart',
+                        'ecommerce': {
+                            'value': parseFloat(value).toFixed(2),
+                            'currency': currency, 
+                            'items': items
+                        }
+                    });
+                }
+            })
+        {% if current_url != "checkout/cart" %}
+        } })
+        $("#cart").mouseleave(function(){
+            $("#cart_opened").val('0');
+        })
+        {% endif %}
+
+        $("body").on('click', "#cart-content .cart-remove, .cart-page .btn-remove,.checkout-section.cart-section .btn-danger" , function(){
+            var Id = 0;
+            var quantity = 0;
+            if(!$(this).hasClass('btn-danger')) {
+                inputString = $(this).attr('onclick');
+                var regex = /cart\.remove\('(\d+)'/;
+                var match = inputString.match(regex);
+                var cart_id = match[1];
+                var Id = $("#"+cart_id).val();
+                if($(this).hasClass('btn-remove')) {
+                    var quantity = $(this).closest('tr').find('input[name*="quantity"]').val();
+                } else {
+                    var quantity = $(this).closest('tr').find('.td-qty').text();
+                    quantity = parseInt(quantity.match(/\d+/)[0]);
+                }
+                $.get("{{base}}index.php?route=product/product/getProductDataForGTM&product_id="+Id,function(response){
+                    var a = JSON.parse(response);
+                    var price = a.price;
+                    if(multiply== 1 || multiply== "1") {
+                        price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                    } else {
+                        price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                    }
+                    dataLayer.push({
+                        'event': 'remove_from_cart',
+                        'ecommerce': {
+                            'value': (price * parseInt(quantity)),
+                            'currency': currency, 
+                            'items': [{
+                                'item_name': a.item_name, 
+                                'item_id': a.item_id, 
+                                'price': price,  
+                                'currency': currency, 
+                                'quantity': quantity, 
+                                'item_brand': a.item_brand, 
+                                'item_category': a.item_category,  
+                            }]
+                        }
+                    });
+                })
+            } else {
+                var quantity = $(this).closest('tr').find(".stepper>input").val();
+                var model = $(this).closest('tr').find(".td-model").text();
+                $.ajax({
+                    url: "{{base}}index.php?route=product/product/getProductByModel&model="+model,
+                    method: "GET",
+                    async: false, // Set async option to false
+                    success: function(res) {
+                        var Id = res;
+                        $.get("{{base}}index.php?route=product/product/getProductDataForGTM&product_id="+Id,function(response){
+                            var a = JSON.parse(response);
+                            var price = a.price;
+                            if(multiply== 1 || multiply== "1") {
+                                price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                            } else {
+                                price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                            }
+                            dataLayer.push({
+                                'event': 'remove_from_cart',
+                                'ecommerce': {
+                                    'value': (price * parseInt(quantity)),
+                                    'currency': currency, 
+                                    'items': [{
+                                        'item_name': a.item_name, 
+                                        'item_id': a.item_id, 
+                                        'price': price,  
+                                        'currency': currency, 
+                                        'quantity': quantity, 
+                                        'item_brand': a.item_brand, 
+                                        'item_category': a.item_category,  
+                                    }]
+                                }
+                            });
+                        })
+                    }
+                })
+            }
+            
+        })
+
+        {% if current_url == "checkout/checkout" %}
+        var items = [];
+        var value = 0;
+        $.ajax({
+            url: "{{base}}index.php?route=product/product/getCartDataForGTM",
+            method: "GET",
+            async: false, // Set async option to false
+            success: function(response) {
+                var data = JSON.parse(response);
+                $.each(data,function(ind,a){
+                    var price = a.price;
+                    if(multiply== 1 || multiply== "1") {
+                        price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                    } else {
+                        price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                    }
+                    items.push({
+                        'item_name': a.item_name, 
+                        'item_id': a.item_id, 
+                        'price': price,  
+                        'currency': currency, 
+                        'quantity': a.quantity, 
+                        'item_brand': a.item_brand, 
+                        'item_category': a.item_category,  
+                    });
+                    value += (price * parseInt(a.quantity));
+                })
+                dataLayer.push({
+                    'event': 'begin_checkout',
+                    'ecommerce': {
+                        'value': parseFloat(value).toFixed(2),
+                        'currency': currency, 
+                        'items': items
+                    }
+                });
+            }
+        })
+        {% endif %}
+
+        if($("#product-product").html() != undefined) {
+            var string = $("body").attr("class");
+            array = string.split("-");
+            var Id = array[2];
+            var quantity = 1;
+            $.get("{{base}}index.php?route=product/product/getProductDataForGTM&product_id="+Id,function(response){
+                var a = JSON.parse(response);
+                var price = a.price;
+                if(multiply== 1 || multiply== "1") {
+                    price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                } else {
+                    price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                }
+                dataLayer.push({
+                    'event': 'view_item',
+                    'ecommerce': {
+                        'value': price,
+                        'currency': currency, 
+                        'items': [{
+                            'item_name': a.item_name, 
+                            'item_id': a.item_id, 
+                            'price': price,  
+                            'currency': currency, 
+                            'quantity': quantity, 
+                            'item_brand': a.item_brand, 
+                            'item_category': a.item_category,  
+                        }]
+                    }
+                });
+            })
+        }
+        $("body").on('click','.btn-quickview',function(){
+            var Id = $(this).attr('onclick').match(/\d+/);
+            $("body").append("<input type='hidden' id='quick_view_elid' value='"+Id+"'>");
+            quantity = 1;
+            $.get("{{base}}index.php?route=product/product/getProductDataForGTM&product_id="+Id,function(response){
+                var a = JSON.parse(response);
+                var price = a.price;
+                if(multiply== 1 || multiply== "1") {
+                    price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                } else {
+                    price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                }
+                dataLayer.push({
+                    'event': 'view_item',
+                    'ecommerce': {
+                        'value': price,
+                        'currency': currency, 
+                        'items': [{
+                            'item_name': a.item_name, 
+                            'item_id': a.item_id, 
+                            'price': price,  
+                            'currency': currency, 
+                            'quantity': quantity, 
+                            'item_brand': a.item_brand, 
+                            'item_category': a.item_category,  
+                        }]
+                    }
+                });
+            })
+        })
+        $("body").on('blur',"#input-firstname, #input-lastname, #input-email, #input-telephone",function(){
+            var blank=0;
+            $("#input-firstname, #input-lastname, #input-email, #input-telephone").each(function(){
+                if($(this).val()=="") blank++;
+            })
+            if(blank==0) {
+                var items = [];
+                var value = 0;
+                $.ajax({
+                    url: "{{base}}index.php?route=product/product/getCartDataForGTM",
+                    method: "GET",
+                    async: false, // Set async option to false
+                    success: function(response) {
+                        var data = JSON.parse(response);
+                        $.each(data,function(ind,a){
+                            var price = a.price;
+                            if(multiply== 1 || multiply== "1") {
+                                price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                            } else {
+                                price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                            }
+                            items.push({
+                                'item_name': a.item_name, 
+                                'item_id': a.item_id, 
+                                'price': price,  
+                                'currency': currency, 
+                                'quantity': a.quantity, 
+                                'item_brand': a.item_brand, 
+                                'item_category': a.item_category,  
+                            });
+                            value += (price * parseInt(a.quantity));
+                        })
+                        dataLayer.push({
+                            'event': 'add_personal_info',
+                            'ecommerce': {
+                                'value': parseFloat(value).toFixed(2),
+                                'currency': currency, 
+                                'items': items
+                            }
+                        });
+                    }
+                })
+            }
+        })
+        $("body").on('change',".payment-address input, .payment-address select",function(){
+            var blank=0;
+            $(".payment-address input, .payment-address select").not(".payment-address input[type='checkbox']").each(function(){
+                if($(this).val()=="") blank++;
+            })
+            if(blank==0) {
+                var items = [];
+                var value = 0;
+                $.ajax({
+                    url: "{{base}}index.php?route=product/product/getCartDataForGTM",
+                    method: "GET",
+                    async: false, // Set async option to false
+                    success: function(response) {
+                        var data = JSON.parse(response);
+                        $.each(data,function(ind,a){
+                            var price = a.price;
+                            if(multiply== 1 || multiply== "1") {
+                                price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                            } else {
+                                price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                            }
+                            items.push({
+                                'item_name': a.item_name, 
+                                'item_id': a.item_id, 
+                                'price': price,  
+                                'currency': currency, 
+                                'quantity': a.quantity, 
+                                'item_brand': a.item_brand, 
+                                'item_category': a.item_category,  
+                            });
+                            value += (price * parseInt(a.quantity));
+                        })
+                        dataLayer.push({
+                            'event': 'add_payment_info',
+                            'ecommerce': {
+                                'value': parseFloat(value).toFixed(2),
+                                'currency': currency, 
+                                'payment_type': $("input[name='payment_method']").val(),
+                                'items': items
+                            }
+                        });
+                    }
+                })
+            }
+        })
+        $("body").on('change',".payment-address input, .payment-address select, input[name='shipping_method']",function(){
+            var blank=0;
+            $(".payment-address input, .payment-address select").not(".payment-address input[type='checkbox']").each(function(){
+                if($(this).val()=="") blank++;
+            })
+            if(blank==0 && $(".payment-address input[type='checkbox']").is(":checked")) {
+                var items = [];
+                var value = 0;
+                $.ajax({
+                    url: "{{base}}index.php?route=product/product/getCartDataForGTM",
+                    method: "GET",
+                    async: false, // Set async option to false
+                    success: function(response) {
+                        var data = JSON.parse(response);
+                        $.each(data,function(ind,a){
+                            var price = a.price;
+                            if(multiply== 1 || multiply== "1") {
+                                price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                            } else {
+                                price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                            }
+                            items.push({
+                                'item_name': a.item_name, 
+                                'item_id': a.item_id, 
+                                'price': price,  
+                                'currency': currency, 
+                                'quantity': a.quantity, 
+                                'item_brand': a.item_brand, 
+                                'item_category': a.item_category,  
+                            });
+                            value += (price * parseInt(a.quantity));
+                        })
+                        dataLayer.push({
+                            'event': 'add_shipping_info',
+                            'ecommerce': {
+                                'value': parseFloat(value).toFixed(2),
+                                'currency': currency, 
+                                'shipping_tier': $("input[name='shipping_method']:checked").next().text(),
+                                'items': items
+                            }
+                        });
+                    }
+                })
+            }
+        })
+        {% if current_url == 'checkout/success' %}
+            var items = [];
+            var value = 0;
+            $.ajax({
+                url: "{{base}}index.php?route=product/product/getCartDataForGTM",
+                method: "GET",
+                async: false, // Set async option to false
+                success: function(response) {
+                    var data = JSON.parse(response);
+                    $.each(data,function(ind,a){
+                        var price = a.price;
+                        if(multiply== 1 || multiply== "1") {
+                            price = parseFloat(price * parseFloat(factor)).toFixed(2);
+                        } else {
+                            price = parseFloat(price / parseFloat(factor)).toFixed(2);
+                        }
+                        items.push({
+                            'item_name': a.item_name, 
+                            'item_id': a.item_id, 
+                            'price': price,  
+                            'currency': currency, 
+                            'quantity': a.quantity, 
+                            'item_brand': a.item_brand, 
+                            'item_category': a.item_category,  
+                        });
+                        value += (price * parseInt(a.quantity));
+                    })
+                    dataLayer.push({
+                        'event': 'purchase',
+                        'ecommerce': {
+                            'value': parseFloat(value).toFixed(2),
+                            'currency': currency, 
+                            'items': items
+                        }
+                    });
+                }
+            })
+        {% endif %}
+        $.get("{{base}}index.php?route=product/product/getCartDataForGTM",function(response){
+            data = JSON.parse(response);
+            $.each(data,function(a,b){
+                var el = "<input type='hidden' id='"+b.cart_id+"' value='"+b.product_id+"'>";
+                $('#cart-content, .checkout-section.cart-section').append(el);
+            })
+        })
+
+
+
+    })
+</script>
+            ]]></add>
+        </operation>
+    </file>
+
+    <file path="catalog/model/catalog/product.php">
+        <operation>
+            <search><![CDATA[class ModelCatalogProduct extends Model {]]></search>
+            <add position="after"><![CDATA[
+    /////////////////////////////
+    public function getProductDataForGTM($product_id=0, $language_id=1, $cart_id=0) {
+        $quantity = 0;
+        if($cart_id) {
+            $query0 = $this->db->query("SELECT * FROM ". DB_PREFIX ."cart WHERE cart_id = '".$cart_id."'");
+            if($query0->row) {
+                $product_id = $query0->row['product_id'];
+                $quantity = $query0->row['quantity'];
+            }
+        }
+        if($product_id) {
+            $query = $this->db->query("
+            SELECT
+                pd.name AS item_name,
+                p.model AS item_id,
+                IFNULL(
+                    (
+                        SELECT price
+                        FROM " . DB_PREFIX . "product_special ps
+                        WHERE ps.product_id = p.product_id
+                            AND ps.customer_group_id = '" . (int)$this->config->get('config_customer_group_id') . "'
+                            AND (
+                                (ps.date_start = '0000-00-00' OR ps.date_start < NOW())
+                                AND (ps.date_end = '0000-00-00' OR ps.date_end > NOW())
+                            )
+                        ORDER BY ps.priority ASC, ps.price ASC
+                        LIMIT 1
+                    ),
+                    p.price
+                ) AS price,
+                m.name AS item_brand,
+                (SELECT cd.name FROM oc_category_description cd WHERE cd.category_id = p2c.category_id AND cd.language_id = '1' LIMIT 1) AS item_category
+            FROM " . DB_PREFIX . "product p
+            LEFT JOIN " . DB_PREFIX . "product_description pd ON (p.product_id = pd.product_id)
+            LEFT JOIN " . DB_PREFIX . "product_to_category p2c ON (p.product_id = p2c.product_id)
+            LEFT JOIN " . DB_PREFIX . "category_description cd ON (p2c.category_id = cd.category_id)
+            LEFT JOIN " . DB_PREFIX . "category c ON (p2c.category_id = c.category_id)
+            LEFT JOIN " . DB_PREFIX . "manufacturer m ON (p.manufacturer_id = m.manufacturer_id)
+            LEFT JOIN " . DB_PREFIX . "product_to_store p2s ON (p.product_id = p2s.product_id)
+            WHERE p.product_id = '" . (int)$product_id . "'
+                AND pd.language_id = '" . (int)$language_id . "'
+                AND cd.language_id = '" . (int)$language_id . "'
+                AND p.status = '1'
+                AND p.date_available <= NOW()
+                AND p2s.store_id = '" . (int)$this->config->get('config_store_id') . "'");
+            $result = $query->row;
+            $result['quantity'] = $quantity;
+            return $result;
+        } else {
+            return false;
+        }
+
+    }
+    public function getProductByModel($model) {
+        $query = $this->db->query("SELECT * FROM `".DB_PREFIX."product` WHERE model = '".$model."'");
+        return $query->row;
+    }
+    //////////////////////////////////
+                ]]></add>
+        </operation>
+    </file>
+
+    <file path="catalog/controller/product/product.php">
+        <operation>
+            <search><![CDATA[class ControllerProductProduct extends Controller {]]></search>
+            <add position="after"><![CDATA[
+    //////////////////////////////////
+    public function getProductDataForGTM() {
+        $product_id = $cart_id = 0;
+        if(isset($this->request->get['cart_id'])) {
+            $cart_id = $this->request->get['cart_id'];
+        } else {
+            $product_id = $this->request->get['product_id'];    
+        }
+        $this->load->model('localisation/language');
+        $results = $this->model_localisation_language->getLanguages();
+        $language_id = $results['en-gb']['language_id'];
+
+        $this->load->model('catalog/product');
+        $product_data = $this->model_catalog_product->getProductDataForGTM($product_id,$language_id,$cart_id);
+        echo json_encode($product_data);
+
+    }
+    public function getCartDataForGTM() { 
+        $cart_data = $this->cart->getProducts();
+        $this->load->model('localisation/language');
+        $results = $this->model_localisation_language->getLanguages();
+        $language_id = $results['en-gb']['language_id'];
+        $this->load->model('catalog/product');
+        $product_data = [];
+        if($cart_data) {
+            foreach($cart_data as $c) {
+                $product_id = $c['product_id'];
+                $result = $this->model_catalog_product->getProductDataForGTM($product_id,$language_id);
+                $result['quantity'] = $c['quantity'];
+                $result['cart_id'] = $c['cart_id'];
+                $result['product_id'] = $c['product_id'];
+                $product_data[] = $result;
+            }
+        }
+        if($this->request->server["HTTP_REFERER"] == $this->url->link('checkout/success')) {
+            $this->cart->clear();
+        }
+        
+        echo json_encode($product_data);
+
+    }
+    public function getProductByModel() {
+        $model = $this->request->get['model'];
+        $this->load->model('catalog/product');
+        $product_data = $this->model_catalog_product->getProductByModel($model);
+        echo $product_data['product_id'];
+    }
+    //////////////////////////////////
+                ]]></add>
+        </operation>
+    </file>
+
+    <file path="catalog/controller/common/header.php">
+        <operation>
+            <search><![CDATA[return $this->load->view('common/header', $data);]]></search>
+            <add position="before"><![CDATA[
+                $data['current_url'] = ($this->request->get['route']??"");
+                $data['request_uri'] = $_SERVER['REQUEST_URI'];
+                ]]></add>
+        </operation>
+    </file>
+
+    <file path="catalog/controller/checkout/success.php">
+        <operation>
+            <search><![CDATA[$this->cart->clear();]]></search>
+            <add position="replace"><![CDATA[/////////////////////////////////////////////////////////////]]></add>
+        </operation>
+    </file>
+
+</modification>
