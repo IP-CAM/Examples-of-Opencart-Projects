@@ -1,0 +1,67 @@
+<?php
+
+ini_set('display_errors', 1);
+require_once('../config.php');
+
+// Funcție pentru conversia encodării
+function convertEncoding($str, $from, $to) {
+    return mb_convert_encoding($str, $to, $from);
+}
+
+// Funcție pentru detectarea encodării
+function detectCharset($string) {
+    return mb_detect_encoding($string, 'UTF-8, ISO-8859-1, ISO-8859-2'); // Adaugă encodările suplimentare pe care vrei să le testezi
+}
+
+$to = 'freecomenzi@babyplants.md';  // Adresa la care vrei să primești notificările
+$from = 'contact@babyplants.md'; // Adresa expeditorului
+
+// Conectarea la baza de date
+$connection = new mysqli(DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_DATABASE);
+
+// Verificare conexiune
+if ($connection->connect_error) {
+    die('Conexiunea la baza de date a eșuat: ' . $connection->connect_error);
+}
+
+// Interogare pentru a găsi comenzile cu status 0 și emailed = 0
+$orders_query = "SELECT * FROM " . DB_PREFIX . "order WHERE order_status_id = 0 AND emailed = 0";
+$result = $connection->query($orders_query);
+
+if ($result->num_rows > 0) {
+    echo '<table class="styled-table">';
+    echo '<tbody>';
+
+    while ($row = $result->fetch_assoc()) {
+        $body = '';  // Resetăm corpul pentru fiecare comandă
+
+        foreach ($row as $field => $value) {
+            $detectedCharset = detectCharset($value);
+            $utf8_value = convertEncoding($value, $detectedCharset, 'UTF-8');
+
+            // Adăugăm rândurile pentru fiecare câmp și valoare
+            $body .= "<tr><td>" . ucfirst($field) . "</td><td>" . $utf8_value . "</td></tr>";
+        }
+
+        $update_query = "UPDATE " . DB_PREFIX . "order SET emailed = 1 WHERE order_id = " . $row['order_id'];
+        $connection->query($update_query);
+        $subject = 'Comandă cu status 0 - Order ID: ' . $row['order_id'];
+
+        $header = "From: " . $from . "\r\n";
+        $header .= "MIME-Version: 1.0\r\n";
+        $header .= "Content-type: text/html; charset=UTF-8\r\n";
+
+        mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', '<table>' . $body . '</table>', $header);
+
+        echo "Notificare trimisă cu succes pentru comanda ID: " . $row['order_id'] . "<br>";
+    }
+
+    echo '</tbody>';
+    echo '</table>';
+} else {
+    echo "Nu există comenzi cu status 0 sau comenzi care nu au fost încă trimise pe email.";
+}
+
+// Închiderea conexiunii
+$connection->close();
+?>
