@@ -1,0 +1,543 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <name>Product Variants</name>
+    <version>1.0</version>
+    <author>Malik Abuzar</author>
+    <link></link>
+    <code>malik_prod_variants_1</code>
+    <description>Product Variants</description>
+    <file path="catalog/view/theme/default/template/product/product.twig">
+        <operation>
+            <search><![CDATA[
+              <div id="product">
+              ]]></search>
+            <add position="before"><![CDATA[
+              {% if product_variants %}
+            <div id="variants" class="d-block  us-product-attr order-2">
+            <h5>{{ vg_heading_title }}</h5>
+            {% for pv in product_variants %}
+            <div class="variants_group">
+              <div class="variants_group_title">{{pv.vp_group.vp_group_name}}</div>
+              {% if pv.vp_group.vp_group_type=='color' %}
+              <div class="color_variants">
+                {% for prod in pv.vp_group_products %}
+                <div class="color_variant_parent">
+                  <a href="{{prod.info.url}}">
+                    <div class="color_variant_pill {% if prod.info.product_id == product_id %}fa fa-check{% endif %}" style="border-color: {{prod.info.vpg_product_text}}; background-color:{{prod.info.vpg_product_text}} "></div>
+                  </a>
+                </div>
+                {% endfor %}
+              </div>
+              {% elseif pv.vp_group.vp_group_type == 'option' %}
+              <div class="option_variants">
+                {% for prod in pv.vp_group_products %}
+                <div class="option_variant_parent">
+                  <a href="{{prod.info.url}}">
+                    <div class="option_variant_block ">
+                      <div class="option_variant_pill {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
+                      <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
+                    </div>
+                  </a>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="{{pv.vp_group.vp_group_type}}_variants">
+                {% for prod in pv.vp_group_products %}
+                <div class="{{pv.vp_group.vp_group_type}}_variant_parent">
+                  <a href="{{prod.info.url}}">
+                    <div class="{{pv.vp_group.vp_group_type}}_variant_block {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
+                    <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
+                  </a>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+            </div><hr>
+          {% endif %}
+            ]]></add>
+          }
+        </operation>
+    </file>
+    <file path="catalog/view/theme/printext/template/product/product.twig">
+        <operation>
+            <search><![CDATA[
+              <div id="product">
+              ]]></search>
+            <add position="before"><![CDATA[
+              {% if product_variants %}
+            <div id="variants" class="d-block  us-product-attr order-2">
+            <h5>{{ vg_heading_title }}</h5>
+            {% for pv in product_variants %}
+            <div class="variants_group">
+              <div class="variants_group_title">{{pv.vp_group.vp_group_name}}</div>
+              {% if pv.vp_group.vp_group_type=='color' %}
+              <div class="color_variants">
+                {% for prod in pv.vp_group_products %}
+                <div class="color_variant_parent">
+                  <a href="{{prod.info.url}}">
+                    <div class="color_variant_pill {% if prod.info.product_id == product_id %}fa fa-check{% endif %}" style="border-color: {{prod.info.vpg_product_text}}; background-color:{{prod.info.vpg_product_text}} "></div>
+                  </a>
+                </div>
+                {% endfor %}
+              </div>
+              {% elseif pv.vp_group.vp_group_type == 'option' %}
+              <div class="option_variants">
+                {% for prod in pv.vp_group_products %}
+                <div class="option_variant_parent">
+                  <a href="{{prod.info.url}}">
+                    <div class="option_variant_block ">
+                      <div class="option_variant_pill {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
+                      <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
+                    </div>
+                  </a>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="{{pv.vp_group.vp_group_type}}_variants">
+                {% for prod in pv.vp_group_products %}
+                <div class="{{pv.vp_group.vp_group_type}}_variant_parent">
+                  <a href="{{prod.info.url}}">
+                    <div class="{{pv.vp_group.vp_group_type}}_variant_block {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
+                    <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
+                  </a>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+            </div><hr>
+          {% endif %}
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/controller/product/product.php">
+        <operation>
+            <search><![CDATA[
+              if ($product_info) {
+            ]]></search>
+            <add position="after"><![CDATA[
+              $data['vg_heading_title']=$this->model_catalog_product->getVariationGroupHeading();
+              $product_variants=$this->model_catalog_product->getProductVariants($product_id);
+              $data['product_variants']=$product_variants;
+            ]]></add>
+        </operation>
+    </file>
+    <file path="catalog/model/catalog/product.php">
+        <operation>
+            <search><![CDATA[
+              public function getTotalProductSpecials() {
+              ]]></search>
+            <add position="before"><![CDATA[
+            public function getProductVariants($product_id) {
+              $product_data = array();
+              $query = $this->db->query("SELECT vp.* FROM " . DB_PREFIX . "vp_group AS vp LEFT JOIN " . DB_PREFIX . "vp_group_product AS vgp ON  vp.vp_group_id = vgp.vp_group_id WHERE vgp.product_id = '".(int)$product_id."' ORDER BY vp.vp_group_name ASC ");
+              foreach ($query->rows as $ind=>$result) {
+                $product_data[$ind]['vp_group'] = $result;
+                $q2=$this->db->query("SELECT * FROM " . DB_PREFIX . "vp_group_product WHERE vp_group_id = '".(int)$result['vp_group_id']."' ORDER BY vpg_product_text ASC");
+                foreach($q2->rows as $index=>$row) {
+                  $product_data[$ind]['vp_group_products'][$index]['info']=$row;
+                  $product_data[$ind]['vp_group_products'][$index]['info']['url']=$this->url->link('product/product','product_id='.$product_data[$ind]['vp_group_products'][$index]['info']['product_id']);
+                  // $product_data[$ind]['vp_group_products'][$index]['data']=$this->getProduct($row['product_id']);
+                }
+              }
+              return $product_data;
+            }
+            public function getVariationGroupHeading() {
+              $query=$this->db->query("SELECT * FROM ". DB_PREFIX . "vp_variations_group_heading");
+              return $query->row['title'];
+            }
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/view/template/catalog/product_form.twig">
+        <operation>
+            <search><![CDATA[
+              <li><a href="#tab-links" data-toggle="tab">{{ tab_links }}</a></li>
+            ]]></search>
+            <add position="after"><![CDATA[
+            <li><a href="#tab-vp" data-toggle="tab">{{ "VP Groups" }}</a></li>
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[
+              <div class="tab-pane" id="tab-attribute">
+            ]]></search>
+            <add position="before"><![CDATA[
+            <div class="tab-pane" id="tab-vp">
+              <div class="form-group">
+                <label class="col-sm-2 control-label"><span data-toggle="tooltip" title="{{ 'is_vp' }}">{{ "is_vp" }}</span></label>
+                <div class="col-sm-10"><input type="hidden" id="index" value="{{vp_groups?vp_groups|length:0}}">
+                  <input type="checkbox" name="is_vp" {% if is_vp %} checked="checked" {% endif %} id="input-is_vp" class="form-control" onclick="if($(this).is(':checked')){$('#vp_data').removeClass('hidden');} else {$('#vp_data').addClass('hidden')}" />
+                </div>
+              </div>
+              <div id="vp_data" {% if is_vp %} {% else %} class="hidden" {% endif %}>
+                {% for vp_group in vp_groups %}
+                <div class="vp_group_data" index="{{loop.index0}}">
+                  <hr>
+                  <div class="form-group">
+                    <label class="col-sm-2 control-label" for="input-vp-group"><span data-toggle="tooltip" title="VP Group Title">VP Group Title</span></label>
+                    <div class="col-sm-4">
+                      <input type="text" name="vp_group_feature[]" value="{{vp_group.vp_group_name}}" placeholder="VP Group Title" id="input-vp_group_feature" class="form-control"/>
+                      <input type="hidden" name="vp_group_id[]" value="{{vp_group.vp_group_id}}" id="input-vp_group_id" class="form-control"/>
+                    </div>
+                    <label class="col-sm-2 control-label" for="input-vp-group"><span data-toggle="tooltip" title="{{ 'VP Group Type' }}">{{ "VP Group Type" }}</span></label>
+                    <div class="col-sm-4">
+                      <select class="form-control display_text_type" name="vp_group_type[]">
+                        <option value="">Select Type</option>
+                        <option value="color" {% if vp_group.vp_group_type=='color' %} selected {% endif %}>Color</option>
+                        <option value="option" {% if vp_group.vp_group_type=='option' %} selected {% endif %}>Option</option>
+                        <option value="image" {% if vp_group.vp_group_type=='image' %} selected {% endif %}>Image</option>
+                        <option value="other" {% if vp_group.vp_group_type=='other' %} selected {% endif %}>Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="col-sm-2 control-label" for="input-vp-groups"><span data-toggle="tooltip" title="{{ 'VP Group Products' }}">{{ "VP Group Products" }}</span></label>
+                    <div class="col-sm-10">
+                      <input type="text" name="vp_group_product" placeholder="VP Group Product" id="input-vp_group_product" class="form-control"/>
+                      <div class="well well-sm vpg_products" style="height: 175px; overflow: auto;"> {% for vp_product in vp_group.vpg_products %}
+                          <div id="vpg_products{{ vp_product.product_id }}">
+                            <div class="col-sm-6">
+                              {{ vp_product.name }} {% if vp_product.product_id==product_id %} <strong>(Me)</strong> {% endif %}
+                              <input type="hidden" name="vpg_product[{{loop.parent.loop.index0}}][]" value="{{ vp_product.product_id }}"/>
+                            </div>
+                            <div class="col-sm-6">
+                              <input name="vpg_product_text[{{loop.parent.loop.index0}}][]" required class="form-control display_text" placeholder="Display Text" value="{{vp_product.vpg_product_text}}" {% if vp_group.vp_group_type=="color" %} type='color' {% endif %} >
+                            </div>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-danger remove_vpg pull-right" onclick="$(this).parent().remove()"><i class="fa fa-minus"></i></button>
+                </div>
+                {% endfor %}
+                <!-- Template for new entry -->
+                <div class="new_vp_group_data hidden">
+                  <hr>
+                  <div class="form-group">
+                    <label class="col-sm-2 control-label" for="input-vp-group"><span data-toggle="tooltip" title="{{ 'VP Group Title' }}">{{ "VP Group Title" }}</span></label>
+                    <div class="col-sm-4">
+                      <input type="text" name="vp_group_feature[]" disabled placeholder="{{ 'VP Group Title' }}" class="form-control"/>
+                      <input type="hidden" name="vp_group_id[]" value="0" disabled class="form-control"/>
+                    </div>
+                    <label class="col-sm-2 control-label" for="input-vp-group"><span data-toggle="tooltip" title="{{ 'VP Group Type' }}">{{ "VP Group Type" }}</span></label>
+                    <div class="col-sm-4">
+                      <select class="form-control display_text_type" name="vp_group_type[]" disabled>
+                        <option value="">Select Type</option>
+                        <option value="color">Color</option>
+                        <option value="option">Option</option>
+                        <option value="image">Image</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="col-sm-2 control-label" for="input-vp-groups"><span data-toggle="tooltip" title="{{ 'Product Display Text' }}">Product Display Text</span></label>
+                    <div class="col-sm-10">
+                      <input type="text" name="vp_group_product_display_text[]" disabled placeholder="This Product Display Text" id="input-vp_group_product_display_text" class="form-control display_text"/>
+                    </div>
+                    <label class="col-sm-2 control-label" for="input-vp-groups"><span data-toggle="tooltip" title="{{ 'VP Group Products' }}">{{ "VP Group Products" }}</span></label>
+                    <div class="col-sm-10">
+                      <input type="text" name="vp_group_product" disabled placeholder="{{ 'VP Group Product' }}" id="input-vp_group_product" class="form-control"/>
+                      <div  class="well well-sm vpg_products" style="height: 150px; overflow: auto;"> 
+
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-danger remove_vpg pull-right" onclick="$(this).parent().remove()"><i class="fa fa-minus"></i></button>
+                </div>
+                <!-- End Template -->
+              </div>
+              <hr>
+              <button type='button' class="btn btn-info pull-right" id="add_vp_data"><i class="fa fa-plus"></i></button>
+            </div>
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[
+              <script type="text/javascript" src="view/javascript/summernote/opencart.js"></script>
+            ]]></search>
+            <add position="after"><![CDATA[
+              <script type="text/javascript">
+            // Virtual Product
+  
+            $('body').on('change','.display_text_type',function(){
+              if($(this).val()=='color')
+              {
+                $(this).parent().parent().parent().find('.display_text').each(function(){
+                  $(this).attr('type','color');
+                })
+              }
+              else
+              {
+                $(this).parent().parent().parent().find('.display_text').each(function(){
+                  $(this).attr('type','text');
+                })
+              }
+            })
+
+            $("#add_vp_data").on('click',function(){
+              var number = $('#index').val();
+              var tmp=$('.new_vp_group_data').clone().removeClass('hidden').removeClass('new_vp_group_data').addClass('vp_group_data').attr('index',number);
+              tmp.find("input").each(function(){
+                $(this).removeAttr('disabled');
+                var current_name = $(this).attr('name'); new_name = current_name.replace(/\[\]/, '[' + number + ']');
+                $(this).attr('name',new_name);
+              })
+              tmp.find("select").each(function(){
+                $(this).removeAttr('disabled');
+                var current_name = $(this).attr('name'); new_name = current_name.replace(/\[\]/, '[' + number + ']');
+                $(this).attr('name',new_name);
+              })
+              tmp.find('select').removeAttr('disabled');
+              tmp.find(".display_text").attr('name','vp_group_product_display_text['+($('#index').val())+"]");
+              $('#vp_data').append(tmp); 
+              $('#index').val(parseInt($('#index').val())+1); 
+            })
+
+            $('body').on('click','input[name="vp_group_product"]',function(){
+              var el=$(this);
+              el.autocomplete({
+                'source': function(request, response) {
+                    $.ajax({
+                        url: 'index.php?route=catalog/product/autocomplete&user_token={{ user_token }}&filter_name=' + encodeURIComponent(request),
+                        dataType: 'json',
+                        success: function(json) {
+                            response($.map(json, function(item) {
+                                return {
+                                    label: item['name'],
+                                    value: item['product_id']
+                                }
+                            }));
+                        }
+                    });
+                },
+                'select': function(item) {
+                    el.val('');
+                    $('#vpg_products' + item['value']).remove();
+                    eln=el.parent().find(".vpg_products");
+                    parent=el.parent().parent().parent();
+                    index=parent.attr('index');
+                    console.log(parent);
+                    var new_el='<div id="vpg_products' + item['value'] + '"><div class="col-sm-6"> ' + item['label'] + '<input type="hidden" name="vpg_product['+parseInt(index)+'][]" value="' + item['value'] + '" /></div><div class="col-sm-6"><input type="text" class="form-control display_text" name="vpg_product_text['+parseInt(index)+'][]" placeholder="Display Text" required></div></div> ';
+                    type=parent.find(".display_text_type").val();
+                    console.log(type);
+                    if(type=='color')
+                      new_el='<div id="vpg_products' + item['value'] + '"><div class="col-sm-6"> ' + item['label'] + '<input type="hidden" name="vpg_product['+parseInt(index)+'][]" value="' + item['value'] + '" /></div><div class="col-sm-6"><input type="color" class="form-control display_text" name="vpg_product_text['+parseInt(index)+'][]" placeholder="Display Text" required></div></div> ';
+                    eln.append(new_el);
+                }
+              })
+            })
+            </script>
+
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/view/template/catalog/product_list.twig">
+      <operation>
+          <search><![CDATA[<div id="filter-product" class="col-md-3 col-md-push-9 col-sm-12 hidden-sm hidden-xs">]]></search>
+          <add position="before"><![CDATA[
+            <div id="variations-group" class="col-md-3 col-md-push-9 col-sm-12 hidden">
+              <div class="panel panel-info">
+                <div class="panel-heading">
+                  <h3 class="panel-title"><i class="fa fa-header"></i> Variații Titlu grup</h3>
+                </div>
+                <form id="heading_title_form" method="post" action="{{ save_heading }}">
+                  <div class="panel-body">
+                    <div class="form-group">
+                      <label class="control-label" for="input-title">Titlu</label>
+                      <input type="text" name="heading_title" value="{{ heading_title }}" id="input-title" class="form-control" />
+                    </div>
+                    <div class="form-group text-right">
+                      <button type="button" onclick="$('#heading_title_form').submit()" id="button-save-heading" class="btn btn-success"><i class="fa fa-check"></i> Salvați </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ]]></add>
+      </operation>
+      <operation>
+          <search><![CDATA[<a href="{{ add }}" data-toggle="tooltip" title="{{ button_add }}" class="btn btn-primary"><i class="fa fa-plus"></i></a>]]></search>
+          <add position="before"><![CDATA[
+            <button type="button" data-toggle="tooltip" title="Variații Titlu grup" onclick="$('#variations-group').toggleClass('hidden'); $('#filter-product').toggleClass('hidden-md hidden-lg');" class="btn btn-success"><i class="fa fa-header"></i></button>
+          ]]></add>
+      </operation>
+    </file>
+    <file path="admin/controller/catalog/product.php">
+        <operation>
+            <search><![CDATA[if (isset($this->request->post['product_layout'])) {]]></search>
+            <add position="before"><![CDATA[
+            if (isset($this->request->post['is_vp'])) {
+              $data['is_vp'] = $this->request->post['is_vp'];
+            } elseif (!empty($product_info)) {
+              $data['is_vp'] = $product_info['is_vp'];
+            } else {
+              $data['is_vp'] = 0;
+            }
+
+            if (isset($this->request->post['product_id'])) {
+              $data['product_id'] = $this->request->post['product_id'];
+            } elseif (!empty($product_info)) {
+              $data['product_id'] = $product_info['product_id'];
+            } else {
+              $data['product_id'] = 0;
+            }
+
+            // VP Groups and Products
+            if (isset($this->request->post['vp_groups'])) {
+              $vp_groups = $this->request->post['vp_groups'];
+            } elseif (isset($this->request->get['product_id'])) {
+              $vp_groups = $this->model_catalog_product->getProductVPGroups($this->request->get['product_id']);
+            } else {
+              $vp_groups = array();
+            }
+
+            $data['vp_groups'] = $vp_groups;
+            foreach($data['vp_groups'] as $i=>$vpg)
+            {
+              $vpg_products = $this->model_catalog_product->getVPGroupProducts($vpg['vp_group_id']);
+              $data['vp_groups'][$i]['vpg_products']=$vpg_products;
+            }
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[protected function getList() {]]></search>
+            <add position="before"><![CDATA[
+            public function saveHeading()
+            {
+              $this->load->model('catalog/product');
+              $this->model_catalog_product->saveHeading($_POST['heading_title']);
+              $this->session->data['success'] = "Titlul grupului de variații a fost modificat cu succes!";
+              $this->response->redirect($this->url->link('catalog/product', 'user_token=' . $this->session->data['user_token'] . $url, true));
+            }
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[protected function getList() {]]></search>
+            <add position="after"><![CDATA[
+            $data['heading_title']=$this->model_catalog_product->getVariationGroupHeading();
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[$data['delete'] = $this->url->link('catalog/product/delete', 'user_token=' . $this->session->data['user_token'] . $url, true);]]></search>
+            <add position="before"><![CDATA[
+            $data['save_heading'] = $this->url->link('catalog/product/saveHeading', 'user_token=' . $this->session->data['user_token'] . $url, true);
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/model/catalog/product.php">
+        <operation>
+            <search><![CDATA[
+              $product_id = $this->db->getLastId();
+            ]]></search>
+            <add position="after"><![CDATA[
+            foreach($data['vp_group_feature'] as $index => $vpg) {
+              $this->db->query("INSERT INTO " . DB_PREFIX . "vp_group SET vp_group_name = '" . $vpg. "', vp_group_type = '".$data['vp_group_type'][$index]."'" );
+              $vp_group_id = $this->db->getLastId();
+              $this->db->query("INSERT INTO " . DB_PREFIX . "vp_group_product SET vp_group_id = '" . (int)$vp_group_id . ", product_id = '". $product_id."' , vpg_product_text = '".$data['vp_group_product_display_text'][$index]."'" );
+              foreach($data['vpg_product'][$index] as $ind=>$vpg_prod)
+              {
+                $this->db->query("INSERT INTO " . DB_PREFIX . "vp_group_product SET vp_group_id = '" . (int)$vp_group_id . ", product_id = '". $vpg_prod."' , vpg_product_text = '".$data['vpg_product_text'][$index][$ind]."'" );
+                $this->db->query("UPDATE " . DB_PREFIX . "product SET is_vp = 1 WHERE product_id = '".$vpg_prod."'");
+              }
+            }
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[
+              public function editProduct($product_id, $data) {
+              ]]></search>
+            <add position="after"><![CDATA[
+              //Check if product is enabled for variation feature
+              if(!isset($data['is_vp'])){
+                $this->db->query("UPDATE " . DB_PREFIX . "product SET is_vp = 0 WHERE product_id = '".$product_id."'");
+                $this->db->query("DELETE FROM " . DB_PREFIX . "vp_group_product WHERE product_id = '" . (int)$product_id . "'");
+              }
+              else { //Product is enabled for variation feature
+                if(!isset($data['vp_group_id'])) { //No vp_group_id means no variation groups, so delete existing
+                  $this->db->query("UPDATE " . DB_PREFIX . "product SET is_vp = 0 WHERE product_id = '".$product_id."'");
+                  $this->db->query("DELETE FROM " . DB_PREFIX . "vp_group_product WHERE product_id = '" . (int)$product_id . "'");
+                }
+                else { //variation groups assigned to current product
+                  $this->db->query("UPDATE " . DB_PREFIX . "product SET is_vp = 1 WHERE product_id = '".$product_id."'");
+                  //check if there is any group other than received group IDs. If present, it should be deleted
+                  $q1=$this->db->query("SELECT * FROM ". DB_PREFIX ."vp_group_product WHERE product_id = '" . (int)$product_id . "' AND vp_group_id NOT IN (".implode(",",$data['vp_group_id']).")");
+                  $check=$q1->rows;
+                  if($check){
+                    foreach($check as $c) {
+                      $this->db->query("DELETE FROM " . DB_PREFIX . "vp_group_product WHERE product_id = '" . (int)$product_id . "' AND vp_group_id = '".$c['vp_group_id']."'");
+                    }
+                  }
+                  //Loop through all variation groups
+                  foreach($data['vp_group_id'] as $index => $vpg) {
+                    if($vpg==0) { //vpg=0 means new group, add this group to vp_group table
+                      $this->db->query("INSERT INTO " . DB_PREFIX . "vp_group SET vp_group_name = '" . $data['vp_group_feature'][$index]. "', vp_group_type = '".$data['vp_group_type'][$index]."'" );
+                      $vp_group_id = $this->db->getLastId(); //Group ID of newly inserted group
+                      //Add current product to the group
+                      $this->db->query("INSERT INTO " . DB_PREFIX . "vp_group_product SET vp_group_id = '" . (int)$vp_group_id . "', product_id = '". $product_id."' , vpg_product_text = '".$data['vp_group_product_display_text'][$index]."'" );
+                      //Add other products to the group by looping through all products in current variation group
+                      foreach($data['vpg_product'][$index] as $ind=>$vpg_prod) {
+                        $this->db->query("INSERT INTO " . DB_PREFIX . "vp_group_product SET vp_group_id = '" . (int)$vp_group_id . "', product_id = '". $vpg_prod ."' , vpg_product_text = '".$data['vpg_product_text'][$index][$ind]."'");
+                        $this->db->query("UPDATE " . DB_PREFIX . "product SET is_vp = 1 WHERE product_id = '".$vpg_prod."'");
+                      }
+                    }
+                    else { //vpg != 0, that means group was already present. not a new group
+                      //update group title and type
+                      $this->db->query("UPDATE " . DB_PREFIX . "vp_group SET vp_group_name = '" . $data['vp_group_feature'][$index]. "', vp_group_type = '".$data['vp_group_type'][$index]."' WHERE vp_group_id=".$vpg );
+                      //loop through all products of current group
+                      foreach($data['vpg_product'][$index] as $ind=>$vpg_prod) {
+                        //Check if product is already associated with this group
+                        $chk=$this->db->query("SELECT * FROM ". DB_PREFIX ."vp_group_product WHERE product_id = '" . (int)$vpg_prod . "' AND vp_group_id = '". $vpg."'");
+                        $chk1=$chk->row;
+                        //If it is already associated, update the product
+                        if($chk1){
+                          $this->db->query("UPDATE " . DB_PREFIX . "vp_group_product SET vpg_product_text = '".$data['vpg_product_text'][$index][$ind]."' WHERE vp_group_product_id=".$chk1['vp_group_product_id'] );
+                          $this->db->query("UPDATE " . DB_PREFIX . "product SET is_vp = 1 WHERE product_id = '".$vpg_prod."'");
+                          echo "<script>console.log('".json_encode($chk1)."')</script>";
+                        }
+                        else{
+                          $this->db->query("INSERT INTO " . DB_PREFIX . "vp_group_product SET vp_group_id = '" . (int)$vpg . "', product_id = '". $vpg_prod."' , vpg_product_text = '".$data['vpg_product_text'][$index][$ind]."'" );
+                          $this->db->query("UPDATE " . DB_PREFIX . "product SET is_vp = 1 WHERE product_id = '".$vpg_prod."'");
+                        }
+                      }
+                    }
+                  }     
+                }
+              }
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[
+              public function getTotalProductsByLayoutId($layout_id) {
+              ]]></search>
+            <add position="before"><![CDATA[
+            public function getVPGroupProducts($vp_group_id){
+              $query = $this->db->query("SELECT * FROM " . DB_PREFIX . "vp_group_product AS vpg LEFT JOIN " . DB_PREFIX . "product_description AS pd ON vpg.product_id=pd.product_id WHERE vp_group_id = '" . (int)$vp_group_id . "' AND pd.language_id = '" . (int)$this->config->get('config_language_id') . "'");
+              return $query->rows;
+            }
+            public function getProductVPGroups($product_id){
+              $query = $this->db->query("SELECT * FROM " . DB_PREFIX . "vp_group AS vg LEFT JOIN " . DB_PREFIX . "vp_group_product AS vgp ON vg.vp_group_id=vgp.vp_group_id WHERE vgp.product_id = '" . (int)$product_id . "'");
+              return $query->rows;
+            }
+            public function getVariationGroupHeading() {
+              $query=$this->db->query("SELECT * FROM ". DB_PREFIX . "vp_variations_group_heading");
+              return $query->row['title'];
+            }
+
+            public function saveHeading($title)
+            {
+              $this->db->query("DELETE FROM ". DB_PREFIX . "vp_variations_group_heading");
+              $this->db->query("INSERT INTO ". DB_PREFIX . "vp_variations_group_heading SET title= '".$title."'");
+            }
+            ]]></add>
+        </operation>
+    </file>
+
+</modification>
