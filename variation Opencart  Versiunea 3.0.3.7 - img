@@ -8,60 +8,42 @@
     <description>Product Variants</description>
     <file path="catalog/view/theme/default/template/product/product.twig">
         <operation>
-            <search><![CDATA[
-              <div id="product">
-              ]]></search>
-            <add position="before"><![CDATA[
-              {% if product_variants %}
-            <div id="variants" class="d-block  us-product-attr order-2">
-            <h5>{{ vg_heading_title }}</h5>
-            {% for pv in product_variants %}
-            <div class="variants_group">
-              <div class="variants_group_title">{{pv.vp_group.vp_group_name}}</div>
-              {% if pv.vp_group.vp_group_type=='color' %}
-              <div class="color_variants">
-                {% for prod in pv.vp_group_products %}
-                <div class="color_variant_parent">
-                  <a href="{{prod.info.url}}">
-                    <div class="color_variant_pill {% if prod.info.product_id == product_id %}fa fa-check{% endif %}" style="border-color: {{prod.info.vpg_product_text}}; background-color:{{prod.info.vpg_product_text}} "></div>
-                  </a>
-                </div>
-                {% endfor %}
-              </div>
-              {% elseif pv.vp_group.vp_group_type == 'option' %}
-              <div class="option_variants">
-                {% for prod in pv.vp_group_products %}
-                <div class="option_variant_parent">
-                  <a href="{{prod.info.url}}">
-                    <div class="option_variant_block ">
-                      <div class="option_variant_pill {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
-                      <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
-                    </div>
-                  </a>
-                </div>
-                {% endfor %}
-              </div>
-              {% else %}
-              <div class="{{pv.vp_group.vp_group_type}}_variants">
-                {% for prod in pv.vp_group_products %}
-                <div class="{{pv.vp_group.vp_group_type}}_variant_parent">
-                  <a href="{{prod.info.url}}">
-                    <div class="{{pv.vp_group.vp_group_type}}_variant_block {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
-                    <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
-                  </a>
-                </div>
-                {% endfor %}
-              </div>
-              {% endif %}
-            </div>
-            {% endfor %}
-            </div><hr>
-          {% endif %}
+          <search><![CDATA[<div class="product-image thumbnails_horizontal">]]></search>
+          <add position="replace"><![CDATA[
+            <div class="product-image thumbnails_horizontal" style="display: flex;">
+                    {% if product_variants %}
+                     {% for prv in product_variants %}
+                      {% if prv.vp_group.vp_group_type=='image' %}
+                      <div class="image-variant" style="width:20%; display: flex; flex-direction: column; justify-content: space-between;">
+                       {% for product in prv.vp_group_products %}
+                          <div class="image-variant-item" style="background-image:url('/image/{% if product.data.image %}{{product.data.image}}{% else %}catalog/demo/product/test.png{% endif %} '); background-size:cover; width:100%; height:125px;display: flex;align-items: flex-end; background-position-y;background-position-y: 0px;">
+                            <span>{% if product.data.model %}{{product.data.model}}{% else %}ABC123{% endif %}</span>
+                          </div>
+                        {% endfor %}
+                        </div>
+                      {% endif %}{% endfor %}{% endif %}
+                    {% if thumb %}
+                      <div class="carousel-container" style="width:80%">
+                        <a class="thumbnail" href="{{ popup }}" title="{{ heading_title }}">
+                          <img src="{{ popup }}" title="{{ heading_title }}" alt="{{ heading_title }}" />
+                        </a>
+                      </div>
+                    {% endif %}
+                    {% if images %}
+                      <div class="image_show">  
+                        <div id="slider_carousel" class="owl-carousel">
+                          {% for image in images %}
+                            <div class="image-additional item">
+                              <a class="thumbnail" href="{{ image.popup }}" title="{{ heading_title }}"> 
+                                <img src="{{ image.thumb }}" title="{{ heading_title }}" alt="{{ heading_title }}" />
+                              </a>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      </div>    
+                    {% endif %}
             ]]></add>
-          }
         </operation>
-    </file>
-    <file path="catalog/view/theme/printext/template/product/product.twig">
         <operation>
             <search><![CDATA[
               <div id="product">
@@ -96,13 +78,77 @@
                 </div>
                 {% endfor %}
               </div>
-              {% else %}
-              <div class="{{pv.vp_group.vp_group_type}}_variants">
+              {% endif %}
+            </div>
+            {% endfor %}
+            </div><hr>
+          {% endif %}
+            ]]></add>
+          }
+        </operation>
+    </file>
+    <file path="catalog/view/theme/printext/template/product/product.twig">
+      <operation>
+          <search><![CDATA[<div class="product-image thumbnails_horizontal">]]></search>
+          <add position="replace"><![CDATA[
+            <div class="product-image" style="display: flex;">
+                    {% if product_variants %}
+                     {% for prv in product_variants %}
+                      {% if prv.vp_group.vp_group_type=='image' %}
+                      <div class="image-variant" style="width:20%; display: flex; flex-direction: column; justify-content: space-between;">
+                       {% for product in prv.vp_group_products %}
+                          <a href="{{product.info.url}}">
+                            <div class="image-variant-item" style="background-image:url('/image/{% if product.data.image %}{{product.data.image}}{% else %}catalog/demo/product/test.png{% endif %} '); background-size:cover; width:100%; height:125px;display: flex;align-items: flex-end; background-position-y;background-position-y: 0px;">
+                            <span>{% if product.data.model %}{{product.data.model}}{% else %}ABC123{% endif %}</span>
+                            </div>
+                          </a>
+                        {% endfor %}
+                        </div>
+                      {% endif %}{% endfor %}{% endif %}
+            ]]></add>
+        </operation>
+        <operation>
+          <search><![CDATA[<div class="carousel-container">]]></search>
+          <add position="replace"><![CDATA[
+            {% if product_variants %}
+              <div class="carousel-container thumbnails_horizontal" style="width:80%">
+            {% else %}
+              <div class="carousel-container">
+            {% endif %}
+            
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[
+              <div id="product">
+              ]]></search>
+            <add position="before"><![CDATA[
+              {% if product_variants %}
+            <div id="variants" class="d-block  us-product-attr order-2">
+            <h5>{{ vg_heading_title }}</h5>
+            {% for pv in product_variants %}
+            <div class="variants_group">
+              {% if pv.vp_group.vp_group_type=='color' %}
+              <div class="variants_group_title">{{pv.vp_group.vp_group_name}}</div>
+              <div class="color_variants">
                 {% for prod in pv.vp_group_products %}
-                <div class="{{pv.vp_group.vp_group_type}}_variant_parent">
+                <div class="color_variant_parent">
                   <a href="{{prod.info.url}}">
-                    <div class="{{pv.vp_group.vp_group_type}}_variant_block {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
-                    <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
+                    <div class="color_variant_pill {% if prod.info.product_id == product_id %}fa fa-check{% endif %}" style="border-color: {{prod.info.vpg_product_text}}; background-color:{{prod.info.vpg_product_text}} "></div>
+                  </a>
+                </div>
+                {% endfor %}
+              </div>
+              {% elseif pv.vp_group.vp_group_type == 'option' %}
+              <div class="variants_group_title">{{pv.vp_group.vp_group_name}}</div>
+              <div class="option_variants">
+                {% for prod in pv.vp_group_products %}
+                <div class="option_variant_parent">
+                  <a href="{{prod.info.url}}">
+                    <div class="option_variant_block ">
+                      <div class="option_variant_pill {% if prod.info.product_id == product_id %} fa fa-check{% endif %}"></div>
+                      <span class="option_variants_text">{{prod.info.vpg_product_text}}</span>
+                    </div>
                   </a>
                 </div>
                 {% endfor %}
@@ -142,7 +188,7 @@
                 foreach($q2->rows as $index=>$row) {
                   $product_data[$ind]['vp_group_products'][$index]['info']=$row;
                   $product_data[$ind]['vp_group_products'][$index]['info']['url']=$this->url->link('product/product','product_id='.$product_data[$ind]['vp_group_products'][$index]['info']['product_id']);
-                  // $product_data[$ind]['vp_group_products'][$index]['data']=$this->getProduct($row['product_id']);
+                  $product_data[$ind]['vp_group_products'][$index]['data']=$this->getProduct($row['product_id']);
                 }
               }
               return $product_data;
