@@ -1,0 +1,100 @@
+// Admin products
+
+ <div class="form-group">
+                <label class="col-sm-2 control-label" for="input-datasheet">{{ entry_datasheet }}</label>
+                <div class="col-sm-10">
+                  <input type="file" name="datasheet" id="input-datasheet" />
+                  {% if datasheet %}
+                    <a href="{{ datasheet }}" target="_blank">View current datasheet</a>
+                  {% endif %}
+                </div>
+</div>
+
+// Controler Admin
+
+
+	public function add() {
+		$this->load->language('catalog/product');
+
+		$this->document->setTitle($this->language->get('heading_title'));
+
+		$this->load->model('catalog/product');
+
+		if (($this->request->server['REQUEST_METHOD'] == 'POST') && $this->validateForm()) {
+			if (!empty($_FILES['datasheet']['name'])) {
+				$allowed = array('pdf', 'doc', 'docx');
+				$filename = basename($_FILES['datasheet']['name']);
+				$extension = pathinfo($filename, PATHINFO_EXTENSION);
+			
+				if (!in_array($extension, $allowed)) {
+					$this->error['warning'] = "Invalid file type!";
+				} else {
+					$upload_path = 'catalog-roof/';
+			
+					if (!is_dir(DIR_IMAGE . $upload_path)) {
+						mkdir(DIR_IMAGE . $upload_path, 0777, true);
+					}
+			
+					// Verifică dacă există deja un datasheet pentru acest produs și șterge-l
+					$current_datasheet = $this->model_catalog_product->getProductDatasheet($this->request->get['product_id']);
+					if (!empty($current_datasheet) && file_exists(DIR_IMAGE . $current_datasheet)) {
+						unlink(DIR_IMAGE . $current_datasheet);
+					}
+			
+					$new_filename = 'datasheet-' . time() . '.' . $extension;
+					$full_path = DIR_IMAGE . $upload_path . $new_filename;
+			
+					if (move_uploaded_file($_FILES['datasheet']['tmp_name'], $full_path)) {
+						$this->request->post['datasheet'] = $upload_path . $new_filename;
+					}
+				}
+			}
+
+
+	public function edit() {
+		$this->load->language('catalog/product');
+
+		$this->document->setTitle($this->language->get('heading_title'));
+
+		$this->load->model('catalog/product');
+
+		if (($this->request->server['REQUEST_METHOD'] == 'POST') && $this->validateForm()) {
+			if (!empty($_FILES['datasheet']['name'])) {
+				$allowed = array('pdf', 'doc', 'docx');
+				$filename = basename($_FILES['datasheet']['name']);
+				$extension = pathinfo($filename, PATHINFO_EXTENSION);
+			
+				if (!in_array($extension, $allowed)) {
+					$this->error['warning'] = "Invalid file type!";
+				} else {
+					$upload_path = 'catalog-roof/';
+			
+					if (!is_dir(DIR_IMAGE . $upload_path)) {
+						mkdir(DIR_IMAGE . $upload_path, 0777, true);
+					}
+			
+					// Verifică dacă există deja un datasheet pentru acest produs și șterge-l
+					$current_datasheet = $this->model_catalog_product->getProductDatasheet($this->request->get['product_id']);
+					if (!empty($current_datasheet) && file_exists(DIR_IMAGE . $current_datasheet)) {
+						unlink(DIR_IMAGE . $current_datasheet);
+					}
+			
+					$new_filename = 'datasheet-' . time() . '.' . $extension;
+					$full_path = DIR_IMAGE . $upload_path . $new_filename;
+			
+					if (move_uploaded_file($_FILES['datasheet']['tmp_name'], $full_path)) {
+						$this->request->post['datasheet'] = $upload_path . $new_filename;
+					}
+				}
+			}
+
+// Model Admin in UPDATE and INSERT
+datasheet = '" . (isset($data['datasheet']) ? $this->db->escape($data['datasheet']) : '') . "',
+
+public function getProductDatasheet($product_id) {
+		$query = $this->db->query("SELECT datasheet FROM " . DB_PREFIX . "product WHERE product_id = '" . (int)$product_id . "'");
+		return $query->row ? $query->row['datasheet'] : null;
+	}
+
+
+
