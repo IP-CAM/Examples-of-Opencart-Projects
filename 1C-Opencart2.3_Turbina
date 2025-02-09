@@ -1,0 +1,671 @@
+<?php
+
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+class Controller1CV1Product1C extends Controller
+{
+    public function index()
+    {
+        $syncLogPath = DIR_APPLICATION . 'controller/1C/v1/sync.log';
+        $infoNotePath = DIR_APPLICATION . 'controller/1C/v1/info-note.txt';
+
+        file_put_contents($syncLogPath, "");
+        file_put_contents($infoNotePath, "Детали обработанных товаров:\n");
+
+        $this->logToFile($syncLogPath, "INFO", "Начало синхронизации товаров...", 'fetch_data');
+
+        $url = defined('API_URL') ? API_URL : '';
+        $username = defined('API_USERNAME') ? API_USERNAME : '';
+        $password = defined('API_PASSWORD') ? API_PASSWORD : '';
+
+
+        $products = $this->fetchDataFromApi($url, $username, $password, $syncLogPath);
+
+        if ($products) {
+            $addedCount = $this->addNewProducts($products);
+        
+            // Continuă execuția normală (nu mai este întreruptă)
+            $batchSize = 100;
+            $chunks = array_chunk($products, $batchSize);
+            $modifiedCount = 0;
+        
+            $this->logToFile($syncLogPath, "INFO", "Общее количество партий: " . count($chunks), 'fetch_data');
+        
+            foreach ($chunks as $chunk) {
+                $modifiedCount += $this->updateProducts($chunk, $infoNotePath);
+            }
+        
+            $descriptionCount = $this->updateProductDescriptions($products);
+        
+            $totalModified = $modifiedCount + $descriptionCount;
+            $this->logToFile($syncLogPath, "INFO", "Товаров изменено/ обновлено (цена/склад): $modifiedCount", 'fetch_data');
+            $this->logToFile($syncLogPath, "INFO", "Описания обновлены для $descriptionCount товаров.", 'fetch_data');
+            $this->logToFile($syncLogPath, "INFO", "Товаров изменено/обновлено (всего): $totalModified", 'fetch_data');
+            $this->logToFile($syncLogPath, "SUCCESS", "Обновление завершено!", 'fetch_data');
+            $this->response->setOutput("Товаров изменено/обновлено (всего): $totalModified");
+        } else {
+            // Aici este locul corect pentru a înregistra eroarea 503!
+            $this->logToFile($syncLogPath, "ERROR", "Данные от API не получены. Сервер возвращает 503.", 'fetch_data');
+            header("HTTP/1.1 503 Service Unavailable");
+            exit("Не удалось получить данные от API.");
+        }
+        
+    }
+
+    private function fetchDataFromApi($url, $username, $password, $logFilePath)
+    {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+        // Verificăm dacă logul este activ înainte de a înregistra mesajul
+        $this->logToFile($logFilePath, "INFO", "Отправка запроса к API: $url");
+    
+        $result = curl_exec($ch);
+    
+        if ($result === false) {
+            $errorMessage = 'cURL error: ' . curl_error($ch);
+            $this->logToFile($logFilePath, "ERROR", $errorMessage, 'fetch_data');
+            curl_close($ch);
+            return null;
+        }
+    
+        curl_close($ch);
+    
+        $result = preg_replace('/^\xEF\xBB\xBF/', '', $result);
+    
+        $data = json_decode($result, true);
+    
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $errorMessage = "Ошибка JSON: " . json_last_error_msg();
+            $this->logToFile($logFilePath, "ERROR", $errorMessage, 'fetch_data');
+            return null;
+        }
+    
+        $this->logToFile($logFilePath, "INFO", "Данные успешно получены. Товаров: " . count($data), 'fetch_data');
+        return $data;
+    }
+    
+
+    private function updateProducts($products, $infoNotePath)
+    {
+        $modifiedCount = 0;
+    
+        foreach ($products as $product) {
+            $retailPrice = (float)$product['RetailPrice'];
+            $stock = (int)$product['Stock'];
+            $sku = $product['Article'];
+            $wholesalePrice = isset($product['WholesalePrice']) ? (float)$product['WholesalePrice'] : null;
+    
+            $model = isset($product['Models']) && is_array($product['Models']) 
+                ? implode(" | ", $product['Models']) 
+                : 'N/A';
+    
+            // Numele în funcție de limbă
+            $nameRu = isset($product['Name_Ru']) ? $product['Name_Ru'] : '';
+            $nameRo = isset($product['Name_Ro']) ? $product['Name_Ro'] : '';
+    
+            // Sincronizăm categoria pe baza `Category.UID`
+            $category = isset($product['Category']) ? $product['Category'] : null;
+            $categoryId = 0;
+            if ($category && isset($category['UID'])) {
+                $this->logToFile($infoNotePath, "INFO", "Проверка категории с UID: {$category['UID']}...", 'fetch_all');
+                $categoryId = $this->syncCategory($category);
+                $this->logToFile($infoNotePath, "INFO", "Категория синхронизирована. ID категории: $categoryId.", 'fetch_all');
+            } else {
+                $this->logToFile($infoNotePath, "WARNING", "Категория отсутствует в данных для продукта SKU: $sku.", 'fetch_all');
+            }
+    
+            // Verificăm dacă produsul există
+            $this->logToFile($infoNotePath, "INFO", "Проверка существования товара с SKU: $sku...", 'fetch_all');
+            $query = $this->db->query("SELECT product_id, price, quantity, model FROM " . DB_PREFIX . "product WHERE sku = '" . $this->db->escape($sku) . "'");
+    
+            if ($query->num_rows > 0) {
+                $productId = $query->row['product_id'];
+                $currentPrice = (float)$query->row['price'];
+                $currentStock = (int)$query->row['quantity'];
+                $currentModel = $query->row['model'];
+    
+                // Actualizăm produsul dacă există modificări la preț, stoc sau model
+                if ($retailPrice != $currentPrice || $stock != $currentStock || $model != $currentModel) {
+                    $this->db->query("UPDATE " . DB_PREFIX . "product 
+                                      SET price = '" . $retailPrice . "', 
+                                          quantity = '" . $stock . "', 
+                                          model = '" . $this->db->escape($model) . "' 
+                                      WHERE product_id = '" . $productId . "'");
+                    $modifiedCount++;
+                    $this->logToFile($infoNotePath, "INFO", "Товар с SKU: $sku обновлен. Цена: $retailPrice, Склад: $stock, Модель: $model, ID: $productId", 'update_products');
+                } else {
+                    $this->logToFile($infoNotePath, "INFO", "Товар с SKU: $sku не требует обновления.", 'fetch_all');
+                }
+            $nameQuery = $this->db->query("SELECT language_id, name, meta_h1 FROM " . DB_PREFIX . "product_description WHERE product_id = '" . $productId . "'");
+            if ($nameQuery->num_rows > 0) {
+                foreach ($nameQuery->rows as $row) {
+                    $languageId = $row['language_id'];
+                    $currentName = $row['name'];
+                    $currentMetaH1 = $row['meta_h1'];
+
+                    // Actualizare pentru limba rusă (language_id = 1)
+                    if ($languageId == 1 && ($currentName != $nameRu || $currentMetaH1 != $nameRu)) {
+                        $this->db->query("UPDATE " . DB_PREFIX . "product_description 
+                                          SET name = '" . $this->db->escape($nameRu) . "', 
+                                              meta_h1 = '" . $this->db->escape($nameRu) . "' 
+                                          WHERE product_id = '" . $productId . "' 
+                                          AND language_id = '1'");
+                        $this->logToFile($infoNotePath, "INFO", "Обновлено название и meta_h1 (RU) для SKU: $sku. Новое название: $nameRu", 'fetch_all');
+                        $modifiedCount++;
+                    }
+
+                    // Actualizare pentru limba română (language_id = 3)
+                    if ($languageId == 3 && ($currentName != $nameRo || $currentMetaH1 != $nameRo)) {
+                        $this->db->query("UPDATE " . DB_PREFIX . "product_description 
+                                          SET name = '" . $this->db->escape($nameRo) . "', 
+                                              meta_h1 = '" . $this->db->escape($nameRo) . "' 
+                                          WHERE product_id = '" . $productId . "' 
+                                          AND language_id = '3'");
+                        $this->logToFile($infoNotePath, "INFO", "Обновлено название и meta_h1 (RO) для SKU: $sku. Nume nou: $nameRo", 'fetch_all');
+                        $modifiedCount++;
+                    }
+                }
+            }
+    
+                // Gestionăm categoria în tabela `vas_product_to_category` (main_category = 1)
+                if ($categoryId > 0) {
+                    $this->logToFile($infoNotePath, "INFO", "Проверка привязки категории для SKU: $sku...", 'fetch_all');
+                    $categoryCheck = $this->db->query("SELECT * FROM vas_product_to_category 
+                                                       WHERE product_id = '" . $productId . "' 
+                                                       AND main_category = 1");
+                    if ($categoryCheck->num_rows > 0) {
+                        // Actualizăm `category_id` dacă este diferit
+                        if ($categoryCheck->row['category_id'] != $categoryId) {
+                            $this->db->query("UPDATE vas_product_to_category 
+                                              SET category_id = '" . $categoryId . "' 
+                                              WHERE product_id = '" . $productId . "' 
+                                              AND main_category = 1");
+                            $this->logToFile($infoNotePath, "INFO", "Обновлена категория для продукта SKU: $sku. Новая категория ID: $categoryId.", 'update_products');
+                        } else {
+                            $this->logToFile($infoNotePath, "INFO", "Категория для продукта SKU: $sku уже актуальна.", 'fetch_all');
+                        }
+                    } else {
+                        // Adăugăm asocierea cu `main_category = 1` dacă nu există
+                        $this->db->query(
+                            "INSERT INTO vas_product_to_category 
+                            (product_id, category_id, main_category) 
+                            VALUES (
+                                '" . $productId . "',
+                                '" . $categoryId . "',
+                                '1'
+                            )"
+                        );
+                        $this->logToFile($infoNotePath, "INFO", "Продукт с SKU: $sku привязан к категории ID: $categoryId.", 'fetch_all');
+                    }
+                }
+    
+                // Gestionăm WholesalePrice
+                if ($wholesalePrice === 0 || is_null($wholesalePrice)) {
+                    $this->logToFile($infoNotePath, "INFO", "Удаление специальной цены для SKU: $sku...", 'update_products');
+                    $deleteQuery = "DELETE FROM " . DB_PREFIX . "product_special WHERE product_id = '" . $productId . "' AND customer_group_id = '2'";
+                    $this->db->query($deleteQuery);
+    
+                    if ($this->db->countAffected() > 0) {
+                        $this->logToFile($infoNotePath, "INFO", "Специальная цена удалена для SKU: $sku.", 'update_products');
+                    } else {
+                        $this->logToFile($infoNotePath, "WARNING", "Не удалось удалить специальную цену для SKU: $sku. Возможно, запись уже отсутствует.", 'fetch_all');
+                    }
+                } else {
+                    $this->logToFile($infoNotePath, "INFO", "Обновление специальной цены для SKU: $sku...", 'fetch_all');
+                    $specialQuery = $this->db->query("SELECT product_special_id FROM " . DB_PREFIX . "product_special WHERE product_id = '" . $productId . "' AND customer_group_id = '2'");
+                    if ($specialQuery->num_rows > 0) {
+                        $this->db->query("UPDATE " . DB_PREFIX . "product_special 
+                                          SET price = '" . $wholesalePrice . "' 
+                                          WHERE product_id = '" . $productId . "' 
+                                          AND customer_group_id = '2'");
+                        $this->logToFile($infoNotePath, "INFO", "Специальная цена обновлена для SKU: $sku, цена: $wholesalePrice.", 'fetch_all');
+                    } else {
+                        $this->db->query("INSERT INTO " . DB_PREFIX . "product_special 
+                                          (product_id, customer_group_id, priority, price, date_start, date_end) 
+                                          VALUES (
+                                              '" . $productId . "',
+                                              '2', 
+                                              '1', 
+                                              '" . $wholesalePrice . "', 
+                                              '0000-00-00', 
+                                              '0000-00-00'
+                                          )");
+                        $this->logToFile($infoNotePath, "INFO", "Добавлена специальная цена для SKU: $sku, цена: $wholesalePrice.", 'fetch_all');
+                    }
+                }
+                // Verificăm dacă produsul este deja asociat cu magazinul principal (store_id = 0)
+                $productStoreQuery = $this->db->query(
+                    "SELECT * FROM " . DB_PREFIX . "product_to_store WHERE product_id = '" . (int)$productId . "' AND store_id = '0'"
+                );
+
+                if ($productStoreQuery->num_rows == 0) {
+                    // Dacă produsul nu este asociat cu magazinul principal, îl adăugăm
+                    $this->db->query(
+                        "INSERT INTO " . DB_PREFIX . "product_to_store 
+                        (product_id, store_id) 
+                        VALUES (
+                            '" . $productId . "',
+                            '0'
+                        )"
+                    );
+                    $this->logToFile($infoNotePath, "INFO", "Продукт с SKU: $sku добавлен в основной магазин.", 'update_products');
+                } else {
+                    $this->logToFile($infoNotePath, "INFO", "Продукт с SKU: $sku уже привязан к основному магазину.", 'fetch_all');
+                }
+                // Gestionăm URL alias
+                $keyword = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $nameRo));
+                $urlAliasQuery = $this->db->query("SELECT keyword FROM " . DB_PREFIX . "url_alias WHERE query = 'product_id=" . $productId . "'");
+                if ($urlAliasQuery->num_rows > 0) {
+                    $currentKeyword = $urlAliasQuery->row['keyword'];
+                    if ($currentKeyword != $keyword) {
+                        $this->db->query("UPDATE " . DB_PREFIX . "url_alias 
+                                          SET keyword = '" . $this->db->escape($keyword) . "' 
+                                          WHERE query = 'product_id=" . $productId . "'");
+                        $this->logToFile($infoNotePath, "INFO", "URL-алиас обновлен для продукта с SKU: $sku. Новый алиас: $keyword", 'update_products');
+                        $modifiedCount++;
+                    } else {
+                        $this->logToFile($infoNotePath, "INFO", "URL-алиас для продукта с SKU: $sku не требует обновления.", 'fetch_all');
+                    }
+                } else {
+                    $this->db->query("INSERT INTO " . DB_PREFIX . "url_alias 
+                                      (query, keyword) 
+                                      VALUES (
+                                          'product_id=" . $productId . "',
+                                          '" . $this->db->escape($keyword) . "'
+                                      )");
+                    $this->logToFile($infoNotePath, "INFO", "Добавлен новый URL-алиас для продукта с SKU: $sku. Алиас: $keyword", 'update_products');
+                    $modifiedCount++;
+                }
+            } else {
+                $this->logToFile($infoNotePath, "WARNING", "Товар с SKU: $sku в базе нет.", 'update_products');
+            }
+        }
+    
+        return $modifiedCount;
+    }
+    
+    
+
+    private function addNewProducts($products)
+    {
+        $addedCount = 0;
+    
+        foreach ($products as $product) {
+            $sku = $product['Article'];
+            $nameRu = isset($product['Name_Ru']) ? $product['Name_Ru'] : ''; // Nume în rusă
+            $nameRo = isset($product['Name_Ro']) ? $product['Name_Ro'] : ''; // Nume în română
+            $quantity = (int)$product['Stock'];
+            $price = (float)$product['RetailPrice'];
+            $wholesalePrice = isset($product['WholesalePrice']) ? (float)$product['WholesalePrice'] : 0;
+            $manufacturerName = $product['Brand'];
+            $category = isset($product['Category']) ? $product['Category'] : null; // Obținem întreaga categorie
+            $image = 'catalog/tovary/img-products/no_image-800x800.png';
+            $stockStatusId = 5;
+            $dateAvailable = date('Y-m-d');
+            $taxClassId = 0;
+            $minimum = 1;
+            $subtract = 1;
+            $shipping = 1;
+            $sortOrder = 0;
+            $status = 1;
+            $viewed = 1;
+            $model = isset($product['Models']) && is_array($product['Models']) 
+                ? implode(" | ", $product['Models']) 
+                : 'N/A';
+    
+            $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Начало обработки товара с SKU: $sku...", 'fetch_all');
+    
+            // Gestionăm producătorul
+            $manufacturerId = 0;
+            if (!empty($manufacturerName)) {
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Проверка производителя: $manufacturerName...", 'fetch_all');
+                $manufacturerQuery = $this->db->query("SELECT manufacturer_id FROM " . DB_PREFIX . "manufacturer WHERE name = '" . $this->db->escape($manufacturerName) . "'");
+                if ($manufacturerQuery->num_rows > 0) {
+                    $manufacturerId = (int)$manufacturerQuery->row['manufacturer_id'];
+                    $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Производитель найден: $manufacturerName, ID: $manufacturerId.", 'fetch_all');
+                } else {
+                    $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "WARNING", "Производитель $manufacturerName отсутствует. Установлен manufacturer_id в 0.", 'add_products');
+                }
+            }
+    
+            // Sincronizăm categoria și obținem category_id
+            $categoryId = 0;
+            if ($category && isset($category['UID'])) {
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Проверка категории с UID: {$category['UID']}...", 'fetch_all');
+                $categoryId = $this->syncCategory($category); // Sincronizarea categoriei pe baza UID-ului
+              $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Категория синхронизирована. ID категории: $categoryId.", 'fetch_all');
+            } else {
+              $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "WARNING", "Категория отсутствует в данных для продукта SKU: $sku.", 'add_products');
+            }
+    
+            // Verificăm dacă produsul există deja în baza de date
+            $productQuery = $this->db->query("SELECT product_id FROM " . DB_PREFIX . "product WHERE sku = '" . $this->db->escape($sku) . "'");
+    
+            if ($productQuery->num_rows == 0) {
+                // Adăugăm produsul
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Товар с SKU: $sku не найден. Добавление нового товара...", 'add_products');
+                $this->db->query(
+                    "INSERT INTO " . DB_PREFIX . "product 
+                    (model, sku, quantity, stock_status_id, image, manufacturer_id, price, date_available, tax_class_id, minimum, subtract, shipping, sort_order, status, viewed, date_added, date_modified) 
+                    VALUES (
+                        '" . $this->db->escape($model) . "',
+                        '" . $this->db->escape($sku) . "',
+                        '" . $quantity . "',
+                        '" . $stockStatusId . "',
+                        '" . $this->db->escape($image) . "',
+                        '" . $manufacturerId . "',
+                        '" . $price . "',
+                        '" . $this->db->escape($dateAvailable) . "',
+                        '" . $taxClassId . "',
+                        '" . $minimum . "',
+                        '" . $subtract . "',
+                        '" . $shipping . "',
+                        '" . $sortOrder . "',
+                        '" . $status . "',
+                        '" . $viewed . "',
+                        NOW(),
+                        NOW()
+                    )"
+                );
+    
+                $productId = $this->db->getLastId();
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Новый продукт добавлен с ID: $productId, SKU: $sku.", 'add_products');
+    
+                // Inserăm numele produsului pentru limba rusă
+                $this->db->query(
+                    "INSERT INTO " . DB_PREFIX . "product_description 
+                    (product_id, language_id, name, description, meta_title, meta_h1) 
+                    VALUES (
+                        '" . $productId . "',
+                        '1',
+                        '" . $this->db->escape($nameRu) . "',
+                        '',
+                        '" . $this->db->escape($nameRu) . "',
+                        '" . $this->db->escape($nameRu) . "'
+                    )"
+                );
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Добавлено название продукта (RU): $nameRu.", 'add_products');
+    
+                // Inserăm numele produsului pentru limba română
+                $this->db->query(
+                    "INSERT INTO " . DB_PREFIX . "product_description 
+                    (product_id, language_id, name, description, meta_title, meta_h1) 
+                    VALUES (
+                        '" . $productId . "',
+                        '3',
+                        '" . $this->db->escape($nameRo) . "',
+                        '',
+                        '" . $this->db->escape($nameRo) . "',
+                        '" . $this->db->escape($nameRo) . "'
+                    )"
+                );
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Adăugat numele produsului (RO): $nameRo.", 'add_products');
+    
+                // Gestionăm asocierea cu categoria în tabela vas_product_to_category (main_category = 1)
+                if ($categoryId > 0) {
+                    $this->db->query(
+                        "INSERT INTO vas_product_to_category 
+                        (product_id, category_id, main_category) 
+                        VALUES (
+                            '" . $productId . "',
+                            '" . $categoryId . "',
+                            '1'
+                        )"
+                    );
+                    $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Продукт с SKU: $sku привязан к категории ID: $categoryId.", 'add_products');
+                }
+    
+                $keyword = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $nameRo));
+                $this->db->query(
+                    "INSERT INTO " . DB_PREFIX . "url_alias 
+                    (query, keyword) 
+                    VALUES (
+                        'product_id=" . $productId . "',
+                        '" . $this->db->escape($keyword) . "'
+                    )"
+                );
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Добавлен URL-алиас для продукта с SKU: $sku.", 'add_products');
+    
+                // Adaugă preț special dacă WholesalePrice > 0
+                if ($wholesalePrice > 0) {
+                    $this->db->query(
+                        "INSERT INTO " . DB_PREFIX . "product_special 
+                        (product_id, customer_group_id, priority, price, date_start, date_end) 
+                        VALUES (
+                            '" . $productId . "',
+                            '2', 
+                            '1', 
+                            '" . $wholesalePrice . "', 
+                            '0000-00-00', 
+                            '0000-00-00'
+                        )"
+                    );
+                    $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Добавлена специальная цена для SKU: $sku, цена: $wholesalePrice.", 'add_products');
+                }
+                // Asociem produsul cu magazinul principal (store_id = 0)
+                $this->db->query(
+                    "INSERT INTO " . DB_PREFIX . "product_to_store 
+                    (product_id, store_id) 
+                    VALUES (
+                        '" . $productId . "',
+                        '0'
+                    )"
+                );
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Продукт с SKU: $sku добавлен в основной магазин.", 'add_products');
+
+    
+                $addedCount++;
+            } else {
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Продукт с SKU: $sku уже существует. Пропуск добавления.", 'fetch_all');
+            }
+        }
+    
+        return $addedCount;
+    }
+      
+    private function updateProductDescriptions($products)
+    {
+        $modifiedCount = 0;
+    
+        foreach ($products as $product) {
+            $sku = $product['Article'];
+            $oemCodes = isset($product['OEMCodes']) ? $product['OEMCodes'] : [];
+            $model = isset($product['Models']) && !empty($product['Models']) ? implode(" | ", $product['Models']) : 'N/A';
+    
+            // Creează blocul nou pentru descriere
+            $newOemBlock = "<!-- OEM_BLOCK_START -->";
+            $newOemBlock .= "<div class='tab-description-p' style='line-height: 1.5;'>";
+            $newOemBlock .= "<p>Model:</p> <a href='https://parts.turbina.md/search/?search=" . $this->db->escape($model) . "' class='oem-item'>" . $this->db->escape($model) . "</a><br>";
+            $newOemBlock .= "<br><p>OEM:</p><br>";
+            $newOemBlock .= "<div id='tab-description-id' style='display: flex; flex-wrap: wrap; gap: 10px;'>";
+    
+            foreach ($oemCodes as $oemCode) {
+                $newOemBlock .= "<div class='oem-item'>";
+                $newOemBlock .= "<a href='https://parts.turbina.md/search/?search=" . $this->db->escape($oemCode) . "'>";
+                $newOemBlock .= $oemCode;
+                $newOemBlock .= "</a>";
+                $newOemBlock .= "</div>";
+            }
+    
+            $newOemBlock .= "</div></div>";
+            $newOemBlock .= "<!-- OEM_BLOCK_END -->";
+    
+            // Selectează descrierea curentă din baza de date
+            $query = $this->db->query("SELECT pd.product_id, pd.language_id, pd.description 
+                                       FROM " . DB_PREFIX . "product_description pd 
+                                       JOIN " . DB_PREFIX . "product p ON pd.product_id = p.product_id 
+                                       WHERE p.sku = '" . $this->db->escape($sku) . "'");
+    
+            if ($query->num_rows > 0) {
+                foreach ($query->rows as $row) {
+                    $productId = (int)$row['product_id'];
+                    $languageId = (int)$row['language_id'];
+                    $currentDescription = $row['description'];
+    
+                    // Verificăm dacă există deja blocul OEM
+                    if (preg_match('/<!-- OEM_BLOCK_START -->.*?<!-- OEM_BLOCK_END -->/s', $currentDescription)) {
+                        // Eliminăm blocul OEM existent
+                        $currentDescription = preg_replace(
+                            '/<!-- OEM_BLOCK_START -->.*?<!-- OEM_BLOCK_END -->/s',
+                            '',
+                            $currentDescription
+                        );
+                    }
+    
+                    // Curățăm spațiile și liniile goale rămase
+                    $currentDescription = trim(preg_replace('/(<br>|\s)+$/s', '', $currentDescription));
+    
+                    // Adaugăm blocul nou sub textul existent
+                    $finalDescription = !empty($currentDescription) 
+                        ? $currentDescription . "<br>" . $newOemBlock 
+                        : $newOemBlock;
+    
+                    // Actualizăm doar dacă descrierea s-a schimbat
+                    if ($currentDescription != $finalDescription) {
+                        $this->db->query("UPDATE " . DB_PREFIX . "product_description 
+                                          SET description = '" . $this->db->escape($finalDescription) . "' 
+                                          WHERE product_id = '" . $productId . "' 
+                                          AND language_id = '" . $languageId . "'");
+    
+                        $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Обновленное описание для SKU: $sku.", 'update_descriptions');
+                        $modifiedCount++;
+                    } else {
+                        $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Descrierea pentru SKU: $sku nu a necesitat actualizare.", 'fetch_all');
+                    }
+                }
+            } else {
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "WARNING", "Produsul cu SKU: $sku nu există în baza de date.", 'update_descriptions');
+            }
+        }
+    
+        return $modifiedCount;
+    }
+    
+    private function syncCategory($category)
+{
+    $categoryId = 0; // ID-ul categoriei care va fi returnat
+    $uid = isset($category['UID']) ? $category['UID'] : '';
+    $nameRu = isset($category['Name_Ru']) ? $category['Name_Ru'] : '';
+    $nameRo = isset($category['Name_Ro']) ? $category['Name_Ro'] : '';
+
+    if (empty($uid) || (empty($nameRu) && empty($nameRo))) {
+        $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "WARNING", "Категория с UID: $uid имеет недостаточно данных для синхронизации.", 'sync_category');
+        return $categoryId;
+    }
+
+    // Verificăm dacă UID-ul categoriei există în baza de date
+    $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Проверка категории с UID: $uid...", 'fetch_all');
+    $query = $this->db->query("SELECT category_id FROM vas_category WHERE UID = '" . $this->db->escape($uid) . "'");
+
+    if ($query->num_rows > 0) {
+        // Categoria există, verificăm dacă trebuie actualizată
+        $categoryId = (int)$query->row['category_id'];
+
+        $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Категория с UID: $uid найдена. Проверка необходимости обновления...", 'fetch_all');
+
+        // Verificăm dacă numele categoriei trebuie actualizat
+        $descriptionQuery = $this->db->query("SELECT language_id, name FROM " . DB_PREFIX . "category_description WHERE category_id = '" . $categoryId . "'");
+        foreach ($descriptionQuery->rows as $row) {
+            $languageId = (int)$row['language_id'];
+            $currentName = $row['name'];
+
+            if ($languageId == 1 && $currentName != $nameRu) {
+                $this->db->query("UPDATE " . DB_PREFIX . "category_description 
+                                  SET name = '" . $this->db->escape($nameRu) . "' 
+                                  WHERE category_id = '" . $categoryId . "' 
+                                  AND language_id = '1'");
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Обновлено название категории (RU) с UID: $uid. Новое название: $nameRu", 'sync_category');
+            } elseif ($languageId == 3 && $currentName != $nameRo) {
+                $this->db->query("UPDATE " . DB_PREFIX . "category_description 
+                                  SET name = '" . $this->db->escape($nameRo) . "' 
+                                  WHERE category_id = '" . $categoryId . "' 
+                                  AND language_id = '3'");
+                $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Numele categoriei (RO) actualizat pentru UID: $uid. Nume nou: $nameRo", 'sync_category');
+            }
+        }
+    } else {
+        // Categoria nu există, o adăugăm
+        $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Категория с UID: $uid отсутствует. Добавление новой категории...", 'sync_category');
+
+        // Adăugăm categoria în tabelul principal
+        $this->db->query("INSERT INTO vas_category (UID) VALUES ('" . $this->db->escape($uid) . "')");
+        $categoryId = $this->db->getLastId();
+
+        // Adăugăm descrierea categoriei pentru limba rusă
+        if (!empty($nameRu)) {
+            $this->db->query("INSERT INTO " . DB_PREFIX . "category_description 
+                              (category_id, language_id, name) 
+                              VALUES (
+                                  '" . $categoryId . "',
+                                  '1',
+                                  '" . $this->db->escape($nameRu) . "'
+                              )");
+            $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Добавлено название категории (RU): $nameRu.", 'fetch_all');
+        }
+
+        // Adăugăm descrierea categoriei pentru limba română
+        if (!empty($nameRo)) {
+            $this->db->query("INSERT INTO " . DB_PREFIX . "category_description 
+                              (category_id, language_id, name) 
+                              VALUES (
+                                  '" . $categoryId . "',
+                                  '3',
+                                  '" . $this->db->escape($nameRo) . "'
+                              )");
+            $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Adăugat numele categoriei (RO): $nameRo.", 'fetch_all');
+        }
+
+        $this->logToFile(DIR_APPLICATION . 'controller/1C/v1/info-note.txt', "INFO", "Новая категория добавлена с UID: $uid, ID: $categoryId.", 'sync_category');
+    }
+
+    return $categoryId;
+}
+private function logToFile($filePath, $logLevel, $message, $logType = "general") 
+    {
+        $timestamp = date("Y-m-d H:i:s");
+
+        $color = "";
+        switch ($logLevel) {
+            case "INFO":
+                $color = "#2ECC71";
+                break;
+            case "WARNING":
+                $color = "#E67E22";
+                break;
+            case "ERROR":
+                $color = "#E74C3C";
+                break;
+            case "SUCCESS":
+                $color = "#7F8C8D";
+                break;
+            default:
+                $color = "black";
+        }
+        $enabledLogs = [
+            'fetch_data' => (bool) ($this->config->get('produs1c_log_fetch_data') ?? true),
+            'fetch_all' => (bool) ($this->config->get('produs1c_log_fetch_all') ?? true),
+            'add_products' => (bool) ($this->config->get('produs1c_log_add_products') ?? true),
+            'update_products' => (bool) ($this->config->get('produs1c_log_update_products') ?? true),
+            'update_descriptions' => (bool) ($this->config->get('produs1c_log_update_descriptions') ?? true),
+            'sync_category' => (bool) ($this->config->get('produs1c_log_sync_category') ?? true)
+        ];
+    
+        // Dacă logul nu este activ, continuăm execuția fără să scriem în fișier
+        if (!isset($enabledLogs[$logType]) || !$enabledLogs[$logType]) {
+            return;
+        }
+        $formattedLogLevel = "<span style='color: $color;'>[$logLevel]</span>";
+
+        $formattedMessage = "<p style='margin-bottom: -12px;'>[$timestamp] $formattedLogLevel $message</p>\n";
+
+        file_put_contents($filePath, $formattedMessage, FILE_APPEND);
+    }
+
+}
